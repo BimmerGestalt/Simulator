@@ -17,11 +17,13 @@ class ServerPlugin: FlutterPlugin, MethodCallHandler {
   /// when the Flutter Engine is detached from the Activity
   private lateinit var channel : MethodChannel
 
-  private val server = CarServer()
+  private val headunitCallbacks = HeadunitCallbacks()
+  private val server = CarServer(callbacks = headunitCallbacks)
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     channel = MethodChannel(flutterPluginBinding.binaryMessenger, "server")
     channel.setMethodCallHandler(this)
+    headunitCallbacks.channel = channel
   }
 
   override fun onMethodCall(call: MethodCall, result: Result) {
@@ -43,5 +45,6 @@ class ServerPlugin: FlutterPlugin, MethodCallHandler {
 
   override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
     channel.setMethodCallHandler(null)
+    headunitCallbacks.channel = null
   }
 }

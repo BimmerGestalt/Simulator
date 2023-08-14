@@ -1,5 +1,6 @@
 package io.bimmergestalt.headunit
 
+import android.util.SparseIntArray
 import androidx.collection.SparseArrayCompat
 import de.bmw.idrive.BMWRemoting
 import de.bmw.idrive.BMWRemotingClient
@@ -8,7 +9,7 @@ import io.bimmergestalt.headunit.Utils.values
 import io.flutter.Log
 import org.apache.etch.util.core.io.Session
 
-class BMWRemotingServerImpl(val client: BMWRemotingClient): BaseBMWRemotingServer() {
+class BMWRemotingServerImpl(val client: BMWRemotingClient, val callbacks: HeadunitCallbacks): BaseBMWRemotingServer() {
 	/** The server side of each TCP connection */
 	companion object {
 		private const val TAG = "BMWRemotingServerImpl"
@@ -17,7 +18,8 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient): BaseBMWRemotingServe
 		private var nextId = 10;
 	}
 
-	val amHandles = SparseArrayCompat<String>()
+	val amHandles = SparseIntArray()
+	val amApps = HashSet<String>()
 	val rhmiHandles = SparseArrayCompat<String>()
 	val cdsHandles = HashSet<Int>() // TODO value should be a subscription list or something
 
@@ -27,8 +29,16 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient): BaseBMWRemotingServe
 
 		if (event == Session.DOWN) {
 			Log.i(TAG, "Cleaning up disconnected rhmiApps: ${rhmiHandles.values().joinToString(",")}")
+
+			// clear out all the AM apps
+			Log.i(TAG, "Cleaning up disconnected amApps: ${amApps.joinToString(",")}")
+			amApps.forEach {
+				callbacks.amUnregisterApp(it)
+			}
+			amApps.clear()
 		}
 		// TODO Callback
+
 	}
 
 	override fun sas_certificate(data: ByteArray?): ByteArray {
@@ -47,15 +57,24 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient): BaseBMWRemotingServe
 	}
 
 	override fun am_create(deviceId: String?, bluetoothAddress: ByteArray?): Int {
+		Log.i(TAG, "am_create")
 		val handle = nextId
 		nextId++
-		amHandles.put(handle, "")
+		amHandles.put(handle, handle)
 		return handle
 	}
 
 	override fun am_registerApp(handle: Int?, appId: String?, values: MutableMap<*, *>?) {
 		// TODO
 		Log.i(TAG, "am_registerApp appId:${appId} name:${values?.get(1.toByte())}")
+		handle ?: return
+		appId ?: return
+		values ?: return
+		val name = values[1.toByte()] as? String ?: return
+		val icon = values[2.toByte()] as? ByteArray ?: return
+		val category = values[3.toByte()] as? String ?: return
+		callbacks.amRegisterApp(handle, name, icon, category)
+		amApps.add(name)
 	}
 
 	override fun am_addAppEventHandler(handle: Int?, ident: String?) {
@@ -67,10 +86,17 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient): BaseBMWRemotingServe
 	}
 
 	override fun am_dispose(handle: Int?) {
-		amHandles.remove(handle ?: -1)
+		Log.i(TAG, "am_dispose")
+		amHandles.delete(handle ?: -1)
+		// clear out all the apps too
+		amApps.forEach {
+			callbacks.amUnregisterApp(it)
+		}
+		amApps.clear()
 	}
 
 	override fun cds_create(): Int {
+		Log.i(TAG, "cds_create")
 		val handle = nextId
 		nextId++
 		cdsHandles.add(handle)
@@ -87,6 +113,18 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient): BaseBMWRemotingServe
 	}
 
 	override fun cds_getPropertyAsync(handle: Int?, ident: String?, propertyName: String?) {
+		// TODO
+		Log.i(TAG, "cds_getPropertyAsync ident:$ident propertyName:$propertyName")
+		if (propertyName == "vehicle.language") {
+			client.cds_onPropertyChangedEvent(handle, ident, propertyName, "{\"language\":3}")
+		}
+	}
+
+	override fun cds_removePropertyChangedEventHandler(
+		handle: Int?,
+		propertyName: String?,
+		ident: String?
+	) {
 		// TODO
 	}
 

@@ -7,7 +7,7 @@ import org.apache.etch.bindings.java.support.ServerFactory
 import org.apache.etch.util.core.io.Transport
 import java.io.IOException
 
-class CarServer(val host: String = "127.0.0.1", val port: Int = 4006) {
+class CarServer(val host: String = "127.0.0.1", val port: Int = 4006, val callbacks: HeadunitCallbacks) {
 	private val uri = "tcp://$host:$port?Packetizer.maxPktSize=8388608&TcpTransport.noDelay=true"
 	private var serverFactory: ServerFactory? = null
 
@@ -16,7 +16,7 @@ class CarServer(val host: String = "127.0.0.1", val port: Int = 4006) {
 			return
 		}
 		try {
-			val serverFactory = BMWRemotingHelper.newListener(uri, null, BMWRemotingListener())
+			val serverFactory = BMWRemotingHelper.newListener(uri, null, BMWRemotingListener(callbacks))
 			serverFactory.transportControl(Transport.START, 4000)
 			this.serverFactory = serverFactory
 		} catch (e: Exception) {
@@ -29,11 +29,11 @@ class CarServer(val host: String = "127.0.0.1", val port: Int = 4006) {
 		serverFactory = null
 	}
 
-	class BMWRemotingListener: BMWRemotingHelper.BMWRemotingServerFactory {
+	class BMWRemotingListener(val callbacks: HeadunitCallbacks): BMWRemotingHelper.BMWRemotingServerFactory {
 		/** Listens for new Etch connections */
 
 		override fun newBMWRemotingServer(client: RemoteBMWRemotingClient?): BMWRemotingServer {
-			return BMWRemotingServerImpl(client!!);
+			return BMWRemotingServerImpl(client!!, callbacks);
 		}
 	}
 }

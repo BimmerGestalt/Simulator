@@ -1,5 +1,6 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
+import 'headunit_callbacks.dart';
 import 'server_method_channel.dart';
 
 abstract class ServerPlatform extends PlatformInterface {
@@ -22,6 +23,8 @@ abstract class ServerPlatform extends PlatformInterface {
     PlatformInterface.verifyToken(instance, _token);
     _instance = instance;
   }
+
+  setEventHandler(HeadunitCallbacks callbacks);
 
   Future<String?> getPlatformVersion();
 

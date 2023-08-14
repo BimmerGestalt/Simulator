@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:headunit/headunit_callbacks.dart';
 import 'package:headunit/server.dart';
 
 void main() {
@@ -15,14 +16,17 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> implements HeadunitCallbacks {
   String _platformVersion = 'Unknown';
   final _headunitPlugin = Server();
+
+  final amApps = List<AMAppInfo>.empty(growable: true);
 
   @override
   void initState() {
     super.initState();
     initPlatformState();
+    _headunitPlugin.setCallback(this);
     _headunitPlugin.startServer();
   }
 
@@ -55,10 +59,48 @@ class _MyAppState extends State<MyApp> {
         appBar: AppBar(
           title: const Text('Plugin example app'),
         ),
-        body: Center(
-          child: Text('Running on: $_platformVersion\n'),
-        ),
+        body: ListView(
+          children: [
+            Center(
+              child: Text('Running on: $_platformVersion\n'),
+            ),
+            ...amApps.map((e) => AMAppInfoWidget(appInfo: e))
+          ],
+        )
       ),
     );
   }
+
+  @override
+  void amRegisterApp(AMAppInfo appInfo) {
+    // TODO: implement amRegisterApp
+    setState(() {
+      amApps.add(appInfo);
+    });
+  }
+
+  @override
+  void amUnregisterApp(String name) {
+    setState(() {
+      amApps.removeWhere((element) => element.name == name);
+    });
+  }
+}
+
+class AMAppInfoWidget extends StatelessWidget {
+  const AMAppInfoWidget({
+    super.key,
+    required this.appInfo
+  });
+  final AMAppInfo appInfo;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+        onPressed: null,
+        icon: appInfo.icon,
+        label: Text(appInfo.name),
+    );
+  }
+
 }
