@@ -46,6 +46,7 @@ class FlutterError (
 /** Generated class from Pigeon that represents data sent in messages. */
 data class AMAppInfo (
   val handle: Long,
+  val appId: String,
   val name: String,
   val iconData: ByteArray,
   val category: String
@@ -55,15 +56,17 @@ data class AMAppInfo (
     @Suppress("UNCHECKED_CAST")
     fun fromList(list: List<Any?>): AMAppInfo {
       val handle = list[0].let { if (it is Int) it.toLong() else it as Long }
-      val name = list[1] as String
-      val iconData = list[2] as ByteArray
-      val category = list[3] as String
-      return AMAppInfo(handle, name, iconData, category)
+      val appId = list[1] as String
+      val name = list[2] as String
+      val iconData = list[3] as ByteArray
+      val category = list[4] as String
+      return AMAppInfo(handle, appId, name, iconData, category)
     }
   }
   fun toList(): List<Any?> {
     return listOf<Any?>(
       handle,
+      appId,
       name,
       iconData,
       category,
@@ -74,6 +77,7 @@ data class AMAppInfo (
 interface ServerApi {
   fun getPlatformVersion(): String
   fun startServer()
+  fun amTrigger(appId: String)
 
   companion object {
     /** The codec used by ServerApi. */
@@ -106,6 +110,25 @@ interface ServerApi {
             var wrapped: List<Any?>
             try {
               api.startServer()
+              wrapped = listOf<Any?>(null)
+            } catch (exception: Throwable) {
+              wrapped = wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.ServerApi.amTrigger", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val appIdArg = args[0] as String
+            var wrapped: List<Any?>
+            try {
+              api.amTrigger(appIdArg)
               wrapped = listOf<Any?>(null)
             } catch (exception: Throwable) {
               wrapped = wrapError(exception)
@@ -157,9 +180,9 @@ class HeadunitApi(private val binaryMessenger: BinaryMessenger) {
       callback()
     }
   }
-  fun amUnregisterApp(nameArg: String, callback: () -> Unit) {
+  fun amUnregisterApp(appIdArg: String, callback: () -> Unit) {
     val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.HeadunitApi.amUnregisterApp", codec)
-    channel.send(listOf(nameArg)) {
+    channel.send(listOf(appIdArg)) {
       callback()
     }
   }

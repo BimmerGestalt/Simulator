@@ -1,15 +1,15 @@
 package io.bimmergestalt.headunit
 
-import android.util.SparseIntArray
 import androidx.collection.SparseArrayCompat
 import de.bmw.idrive.BMWRemoting
 import de.bmw.idrive.BMWRemotingClient
 import de.bmw.idrive.BaseBMWRemotingServer
 import io.bimmergestalt.headunit.Utils.values
+import io.bimmergestalt.headunit.managers.AMManager
 import io.flutter.Log
 import org.apache.etch.util.core.io.Session
 
-class BMWRemotingServerImpl(val client: BMWRemotingClient, val callbacks: HeadunitCallbacks): BaseBMWRemotingServer() {
+class BMWRemotingServerImpl(val client: BMWRemotingClient,val amManager: AMManager): BaseBMWRemotingServer() {
 	/** The server side of each TCP connection */
 	companion object {
 		private const val TAG = "BMWRemotingServerImpl"
@@ -18,8 +18,7 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient, val callbacks: Headun
 		private var nextId = 10;
 	}
 
-	val amHandles = SparseIntArray()
-	val amApps = HashSet<String>()
+	var amHandle: Int? = null
 	val rhmiHandles = SparseArrayCompat<String>()
 	val cdsHandles = HashSet<Int>() // TODO value should be a subscription list or something
 
@@ -31,11 +30,8 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient, val callbacks: Headun
 			Log.i(TAG, "Cleaning up disconnected rhmiApps: ${rhmiHandles.values().joinToString(",")}")
 
 			// clear out all the AM apps
-			Log.i(TAG, "Cleaning up disconnected amApps: ${amApps.joinToString(",")}")
-			amApps.forEach {
-				callbacks.amUnregisterApp(it)
-			}
-			amApps.clear()
+			Log.i(TAG, "Cleaning up disconnected amApps")
+			am_dispose(amHandle)
 		}
 		// TODO Callback
 
@@ -58,41 +54,54 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient, val callbacks: Headun
 
 	override fun am_create(deviceId: String?, bluetoothAddress: ByteArray?): Int {
 		Log.i(TAG, "am_create")
+		if (amHandle != null) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Can't make another AM handle")
+		}
 		val handle = nextId
 		nextId++
-		amHandles.put(handle, handle)
+		amHandle = handle
 		return handle
 	}
 
 	override fun am_registerApp(handle: Int?, appId: String?, values: MutableMap<*, *>?) {
-		// TODO
 		Log.i(TAG, "am_registerApp appId:${appId} name:${values?.get(1.toByte())}")
+		if (amHandle == null || amHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect AM handle")
+		}
 		handle ?: return
 		appId ?: return
 		values ?: return
 		val name = values[1.toByte()] as? String ?: return
 		val icon = values[2.toByte()] as? ByteArray ?: return
 		val category = values[3.toByte()] as? String ?: return
-		callbacks.amRegisterApp(handle, name, icon, category)
-		amApps.add(name)
+		amManager.registerApp(handle, appId, name, icon, category)
 	}
 
 	override fun am_addAppEventHandler(handle: Int?, ident: String?) {
-		// TODO
+		if (amHandle == null || amHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect AM handle")
+		}
+		handle ?: return
+		amManager.addEventHandler(handle, client)
 	}
 
 	override fun am_removeAppEventHandler(handle: Int?, ident: String?) {
-		// TODO
+		if (amHandle == null || amHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect AM handle")
+		}
+		val amHandle = amHandle ?: return
+		amManager.removeEventHandler(amHandle)
 	}
 
 	override fun am_dispose(handle: Int?) {
 		Log.i(TAG, "am_dispose")
-		amHandles.delete(handle ?: -1)
-		// clear out all the apps too
-		amApps.forEach {
-			callbacks.amUnregisterApp(it)
+		if (amHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect AM handle")
 		}
-		amApps.clear()
+		val amHandle = amHandle ?: return
+		amManager.unregisterAppsByHandle(amHandle)
+		amManager.removeEventHandler(amHandle)
+		this.amHandle = null
 	}
 
 	override fun cds_create(): Int {

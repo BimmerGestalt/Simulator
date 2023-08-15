@@ -7,16 +7,15 @@ class HeadunitCallbacks {
 	val handler = Handler(Looper.getMainLooper())
 	var channel: HeadunitApi? = null
 
-	fun amRegisterApp(handle: Int, name: String, icon: ByteArray, category: String) {
+	fun amRegisterApp(appInfo: AMAppInfo) {
 		handler.post {
-
-			channel?.amRegisterApp(AMAppInfo(handle.toLong(), name, icon, category)) {}
+			channel?.amRegisterApp(appInfo) {}
 		}
 	}
 
-	fun amUnregisterApp(name: String) {
+	fun amUnregisterApp(appId: String) {
 		handler.post {
-			channel?.amUnregisterApp(name) {}
+			channel?.amUnregisterApp(appId) {}
 		}
 	}
 }

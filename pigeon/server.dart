@@ -11,20 +11,23 @@ import 'package:pigeon/pigeon.dart';
 
 class AMAppInfo {
   final int handle;
+  final String appId;
   final String name;
   final Uint8List iconData;
   final String category;
 
-  AMAppInfo(this.handle, this.name, this.iconData, this.category);
+  AMAppInfo(this.handle, this.appId, this.name, this.iconData, this.category);
 }
 
 @HostApi()
 abstract class ServerApi {
   String getPlatformVersion();
   void startServer();
+
+  void amTrigger(String appId);
 }
 @FlutterApi()
 abstract class HeadunitApi {
   void amRegisterApp(AMAppInfo appInfo);
-  void amUnregisterApp(String name);
+  void amUnregisterApp(String appId);
 }

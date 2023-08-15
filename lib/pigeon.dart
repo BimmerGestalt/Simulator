@@ -11,12 +11,15 @@ import 'package:flutter/services.dart';
 class AMAppInfo {
   AMAppInfo({
     required this.handle,
+    required this.appId,
     required this.name,
     required this.iconData,
     required this.category,
   });
 
   int handle;
+
+  String appId;
 
   String name;
 
@@ -27,6 +30,7 @@ class AMAppInfo {
   Object encode() {
     return <Object?>[
       handle,
+      appId,
       name,
       iconData,
       category,
@@ -37,9 +41,10 @@ class AMAppInfo {
     result as List<Object?>;
     return AMAppInfo(
       handle: result[0]! as int,
-      name: result[1]! as String,
-      iconData: result[2]! as Uint8List,
-      category: result[3]! as String,
+      appId: result[1]! as String,
+      name: result[2]! as String,
+      iconData: result[3]! as Uint8List,
+      category: result[4]! as String,
     );
   }
 }
@@ -102,6 +107,28 @@ class ServerApi {
       return;
     }
   }
+
+  Future<void> amTrigger(String arg_appId) async {
+    final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.headunit.ServerApi.amTrigger', codec,
+        binaryMessenger: _binaryMessenger);
+    final List<Object?>? replyList =
+        await channel.send(<Object?>[arg_appId]) as List<Object?>?;
+    if (replyList == null) {
+      throw PlatformException(
+        code: 'channel-error',
+        message: 'Unable to establish connection on channel.',
+      );
+    } else if (replyList.length > 1) {
+      throw PlatformException(
+        code: replyList[0]! as String,
+        message: replyList[1] as String?,
+        details: replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
 }
 
 class _HeadunitApiCodec extends StandardMessageCodec {
@@ -132,7 +159,7 @@ abstract class HeadunitApi {
 
   void amRegisterApp(AMAppInfo appInfo);
 
-  void amUnregisterApp(String name);
+  void amUnregisterApp(String appId);
 
   static void setup(HeadunitApi? api, {BinaryMessenger? binaryMessenger}) {
     {
@@ -165,10 +192,10 @@ abstract class HeadunitApi {
           assert(message != null,
           'Argument for dev.flutter.pigeon.headunit.HeadunitApi.amUnregisterApp was null.');
           final List<Object?> args = (message as List<Object?>?)!;
-          final String? arg_name = (args[0] as String?);
-          assert(arg_name != null,
+          final String? arg_appId = (args[0] as String?);
+          assert(arg_appId != null,
               'Argument for dev.flutter.pigeon.headunit.HeadunitApi.amUnregisterApp was null, expected non-null String.');
-          api.amUnregisterApp(arg_name!);
+          api.amUnregisterApp(arg_appId!);
           return;
         });
       }

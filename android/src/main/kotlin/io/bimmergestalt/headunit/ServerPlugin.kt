@@ -1,5 +1,8 @@
 package io.bimmergestalt.headunit
 
+import android.os.Handler
+import android.os.HandlerThread
+import io.bimmergestalt.headunit.managers.AMManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodChannel
 
@@ -13,8 +16,12 @@ class ServerPlugin: FlutterPlugin, ServerApi {
   /// when the Flutter Engine is detached from the Activity
   private lateinit var channel : MethodChannel
 
+  private val ioThread = HandlerThread("toEtchClients").apply { start() }
+  private val ioHandler = Handler(ioThread.looper)
+
   private val headunitCallbacks = HeadunitCallbacks()
-  private val server = CarServer(callbacks = headunitCallbacks)
+  private val amManager = AMManager(headunitCallbacks)
+  private val server = CarServer(amManager = amManager)
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     headunitCallbacks.channel = HeadunitApi(flutterPluginBinding.binaryMessenger)
@@ -33,5 +40,11 @@ class ServerPlugin: FlutterPlugin, ServerApi {
 
   override fun startServer() {
     server.startServer()
+  }
+
+  override fun amTrigger(appId: String) {
+    ioHandler.post {
+      amManager.onAppEvent(appId)
+    }
   }
 }

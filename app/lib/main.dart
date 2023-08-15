@@ -17,16 +17,16 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> implements HeadunitApi {
   String _platformVersion = 'Unknown';
-  final _headunitPlugin = ServerApi();
+  final _serverPlugin = ServerApi();
 
-  final amApps = List<AMAppInfo>.empty(growable: true);
+  final amApps = <String, AMAppInfo>{};
 
   @override
   void initState() {
     super.initState();
     initPlatformState();
     HeadunitApi.setup(this, binaryMessenger: ServicesBinding.instance.defaultBinaryMessenger);
-    _headunitPlugin.startServer();
+    _serverPlugin.startServer();
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
@@ -36,7 +36,7 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
     // We also handle the message potentially returning null.
     try {
       platformVersion =
-          await _headunitPlugin.getPlatformVersion() ?? 'Unknown platform version';
+          await _serverPlugin.getPlatformVersion() ?? 'Unknown platform version';
     } on PlatformException {
       platformVersion = 'Failed to get platform version.';
     }
@@ -63,7 +63,10 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
             Center(
               child: Text('Running on: $_platformVersion\n'),
             ),
-            ...amApps.map((e) => AMAppInfoWidget(appInfo: e))
+            ...amApps.entries.map((e) => AMAppInfoWidget(
+                server: _serverPlugin,
+                appInfo: e.value
+            ))
           ],
         )
       ),
@@ -72,16 +75,15 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
 
   @override
   void amRegisterApp(AMAppInfo appInfo) {
-    // TODO: implement amRegisterApp
     setState(() {
-      amApps.add(appInfo);
+      amApps[appInfo.appId] = appInfo;
     });
   }
 
   @override
-  void amUnregisterApp(String name) {
+  void amUnregisterApp(String appId) {
     setState(() {
-      amApps.removeWhere((element) => element.name == name);
+      amApps.remove(appId);
     });
   }
 }
@@ -89,16 +91,24 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
 class AMAppInfoWidget extends StatelessWidget {
   const AMAppInfoWidget({
     super.key,
-    required this.appInfo
+    required this.server,
+    required this.appInfo,
   });
+  final ServerApi server;
   final AMAppInfo appInfo;
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-        onPressed: null,
-        icon: Image.memory(appInfo.iconData),
-        label: Text(appInfo.name),
+    return Row(
+      children: [
+        TextButton.icon(
+          onPressed: () {
+            server.amTrigger(appInfo.appId);
+          },
+          icon: Image.memory(appInfo.iconData),
+          label: Text(appInfo.name),
+        )
+      ],
     );
   }
 
