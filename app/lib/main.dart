@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 import 'package:flutter/services.dart';
-import 'package:headunit/headunit_callbacks.dart';
-import 'package:headunit/server.dart';
+import 'package:headunit/pigeon.dart';
 
 void main() {
   runApp(const MyApp());
@@ -16,9 +15,9 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> implements HeadunitCallbacks {
+class _MyAppState extends State<MyApp> implements HeadunitApi {
   String _platformVersion = 'Unknown';
-  final _headunitPlugin = Server();
+  final _headunitPlugin = ServerApi();
 
   final amApps = List<AMAppInfo>.empty(growable: true);
 
@@ -26,7 +25,7 @@ class _MyAppState extends State<MyApp> implements HeadunitCallbacks {
   void initState() {
     super.initState();
     initPlatformState();
-    _headunitPlugin.setCallback(this);
+    HeadunitApi.setup(this, binaryMessenger: ServicesBinding.instance.defaultBinaryMessenger);
     _headunitPlugin.startServer();
   }
 
@@ -98,7 +97,7 @@ class AMAppInfoWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
         onPressed: null,
-        icon: appInfo.icon,
+        icon: Image.memory(appInfo.iconData),
         label: Text(appInfo.name),
     );
   }
