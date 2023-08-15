@@ -10,12 +10,6 @@ import io.bimmergestalt.idriveconnectkit.RHMIDimensions
 
 /** ServerPlugin */
 class ServerPlugin: FlutterPlugin, ServerApi {
-  /// The MethodChannel that will the communication between Flutter and native Android
-  ///
-  /// This local reference serves to register the plugin with the Flutter Engine and unregister it
-  /// when the Flutter Engine is detached from the Activity
-  private lateinit var channel : MethodChannel
-
   private val ioThread = HandlerThread("toEtchClients").apply { start() }
   private val ioHandler = Handler(ioThread.looper)
 
@@ -29,7 +23,6 @@ class ServerPlugin: FlutterPlugin, ServerApi {
   }
 
   override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-    channel.setMethodCallHandler(null)
     headunitCallbacks.channel = null
   }
 
