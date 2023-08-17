@@ -3,6 +3,7 @@ package io.bimmergestalt.headunit
 import android.os.Handler
 import android.os.HandlerThread
 import io.bimmergestalt.headunit.managers.AMManager
+import io.bimmergestalt.headunit.managers.RHMIManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodChannel
 
@@ -15,7 +16,8 @@ class ServerPlugin: FlutterPlugin, ServerApi {
 
   private val headunitCallbacks = HeadunitCallbacks()
   private val amManager = AMManager(headunitCallbacks)
-  private val server = CarServer(amManager = amManager)
+  private val rhmiManager = RHMIManager(headunitCallbacks)
+  private val server = CarServer(amManager = amManager, rhmiManager = rhmiManager)
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     headunitCallbacks.channel = HeadunitApi(flutterPluginBinding.binaryMessenger)

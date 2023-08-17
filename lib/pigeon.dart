@@ -49,6 +49,37 @@ class AMAppInfo {
   }
 }
 
+class RHMIAppInfo {
+  RHMIAppInfo({
+    required this.handle,
+    required this.appId,
+    required this.resources,
+  });
+
+  int handle;
+
+  String appId;
+
+  Map<String?, Uint8List?> resources;
+
+  Object encode() {
+    return <Object?>[
+      handle,
+      appId,
+      resources,
+    ];
+  }
+
+  static RHMIAppInfo decode(Object result) {
+    result as List<Object?>;
+    return RHMIAppInfo(
+      handle: result[0]! as int,
+      appId: result[1]! as String,
+      resources: (result[2] as Map<Object?, Object?>?)!.cast<String?, Uint8List?>(),
+    );
+  }
+}
+
 class ServerApi {
   /// Constructor for [ServerApi].  The [binaryMessenger] named argument is
   /// available for dependency injection.  If it is left null, the default
@@ -138,6 +169,9 @@ class _HeadunitApiCodec extends StandardMessageCodec {
     if (value is AMAppInfo) {
       buffer.putUint8(128);
       writeValue(buffer, value.encode());
+    } else if (value is RHMIAppInfo) {
+      buffer.putUint8(129);
+      writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
     }
@@ -148,6 +182,8 @@ class _HeadunitApiCodec extends StandardMessageCodec {
     switch (type) {
       case 128: 
         return AMAppInfo.decode(readValue(buffer)!);
+      case 129: 
+        return RHMIAppInfo.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -160,6 +196,16 @@ abstract class HeadunitApi {
   void amRegisterApp(AMAppInfo appInfo);
 
   void amUnregisterApp(String appId);
+
+  void rhmiRegisterApp(RHMIAppInfo appInfo);
+
+  void rhmiUnregisterApp(String appId);
+
+  void rhmiSetData(String appId, int modelId, Object? value);
+
+  void rhmiSetProperty(String appId, int componentId, int propertyId, Object? value);
+
+  void rhmiTriggerEvent(String appId, int eventId, Map<int?, Object?> args);
 
   static void setup(HeadunitApi? api, {BinaryMessenger? binaryMessenger}) {
     {
@@ -196,6 +242,118 @@ abstract class HeadunitApi {
           assert(arg_appId != null,
               'Argument for dev.flutter.pigeon.headunit.HeadunitApi.amUnregisterApp was null, expected non-null String.');
           api.amUnregisterApp(arg_appId!);
+          return;
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.headunit.HeadunitApi.rhmiRegisterApp', codec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        channel.setMessageHandler(null);
+      } else {
+        channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiRegisterApp was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final RHMIAppInfo? arg_appInfo = (args[0] as RHMIAppInfo?);
+          assert(arg_appInfo != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiRegisterApp was null, expected non-null RHMIAppInfo.');
+          api.rhmiRegisterApp(arg_appInfo!);
+          return;
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.headunit.HeadunitApi.rhmiUnregisterApp', codec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        channel.setMessageHandler(null);
+      } else {
+        channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiUnregisterApp was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_appId = (args[0] as String?);
+          assert(arg_appId != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiUnregisterApp was null, expected non-null String.');
+          api.rhmiUnregisterApp(arg_appId!);
+          return;
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetData', codec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        channel.setMessageHandler(null);
+      } else {
+        channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetData was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_appId = (args[0] as String?);
+          assert(arg_appId != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetData was null, expected non-null String.');
+          final int? arg_modelId = (args[1] as int?);
+          assert(arg_modelId != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetData was null, expected non-null int.');
+          final Object? arg_value = (args[2] as Object?);
+          api.rhmiSetData(arg_appId!, arg_modelId!, arg_value);
+          return;
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetProperty', codec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        channel.setMessageHandler(null);
+      } else {
+        channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetProperty was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_appId = (args[0] as String?);
+          assert(arg_appId != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetProperty was null, expected non-null String.');
+          final int? arg_componentId = (args[1] as int?);
+          assert(arg_componentId != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetProperty was null, expected non-null int.');
+          final int? arg_propertyId = (args[2] as int?);
+          assert(arg_propertyId != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetProperty was null, expected non-null int.');
+          final Object? arg_value = (args[3] as Object?);
+          api.rhmiSetProperty(arg_appId!, arg_componentId!, arg_propertyId!, arg_value);
+          return;
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.headunit.HeadunitApi.rhmiTriggerEvent', codec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        channel.setMessageHandler(null);
+      } else {
+        channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiTriggerEvent was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_appId = (args[0] as String?);
+          assert(arg_appId != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiTriggerEvent was null, expected non-null String.');
+          final int? arg_eventId = (args[1] as int?);
+          assert(arg_eventId != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiTriggerEvent was null, expected non-null int.');
+          final Map<int?, Object?>? arg_args = (args[2] as Map<Object?, Object?>?)?.cast<int?, Object?>();
+          assert(arg_args != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiTriggerEvent was null, expected non-null Map<int?, Object?>.');
+          api.rhmiTriggerEvent(arg_appId!, arg_eventId!, arg_args!);
           return;
         });
       }

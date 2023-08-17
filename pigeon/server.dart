@@ -19,6 +19,14 @@ class AMAppInfo {
   AMAppInfo(this.handle, this.appId, this.name, this.iconData, this.category);
 }
 
+class RHMIAppInfo {
+  final int handle;
+  final String appId;
+  final Map<String?, Uint8List?> resources;
+
+  RHMIAppInfo(this.handle, this.appId, this.resources);
+}
+
 @HostApi()
 abstract class ServerApi {
   String getPlatformVersion();
@@ -30,4 +38,9 @@ abstract class ServerApi {
 abstract class HeadunitApi {
   void amRegisterApp(AMAppInfo appInfo);
   void amUnregisterApp(String appId);
+  void rhmiRegisterApp(RHMIAppInfo appInfo);
+  void rhmiUnregisterApp(String appId);
+  void rhmiSetData(String appId, int modelId, Object? value);
+  void rhmiSetProperty(String appId, int componentId, int propertyId, Object? value);
+  void rhmiTriggerEvent(String appId, int eventId, Map<int, Object?> args);
 }

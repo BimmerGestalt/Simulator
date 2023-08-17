@@ -73,6 +73,31 @@ data class AMAppInfo (
     )
   }
 }
+
+/** Generated class from Pigeon that represents data sent in messages. */
+data class RHMIAppInfo (
+  val handle: Long,
+  val appId: String,
+  val resources: Map<String?, ByteArray?>
+
+) {
+  companion object {
+    @Suppress("UNCHECKED_CAST")
+    fun fromList(list: List<Any?>): RHMIAppInfo {
+      val handle = list[0].let { if (it is Int) it.toLong() else it as Long }
+      val appId = list[1] as String
+      val resources = list[2] as Map<String?, ByteArray?>
+      return RHMIAppInfo(handle, appId, resources)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf<Any?>(
+      handle,
+      appId,
+      resources,
+    )
+  }
+}
 /** Generated interface from Pigeon that represents a handler of messages from Flutter. */
 interface ServerApi {
   fun getPlatformVersion(): String
@@ -151,6 +176,11 @@ private object HeadunitApiCodec : StandardMessageCodec() {
           AMAppInfo.fromList(it)
         }
       }
+      129.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          RHMIAppInfo.fromList(it)
+        }
+      }
       else -> super.readValueOfType(type, buffer)
     }
   }
@@ -158,6 +188,10 @@ private object HeadunitApiCodec : StandardMessageCodec() {
     when (value) {
       is AMAppInfo -> {
         stream.write(128)
+        writeValue(stream, value.toList())
+      }
+      is RHMIAppInfo -> {
+        stream.write(129)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -183,6 +217,36 @@ class HeadunitApi(private val binaryMessenger: BinaryMessenger) {
   fun amUnregisterApp(appIdArg: String, callback: () -> Unit) {
     val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.HeadunitApi.amUnregisterApp", codec)
     channel.send(listOf(appIdArg)) {
+      callback()
+    }
+  }
+  fun rhmiRegisterApp(appInfoArg: RHMIAppInfo, callback: () -> Unit) {
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.HeadunitApi.rhmiRegisterApp", codec)
+    channel.send(listOf(appInfoArg)) {
+      callback()
+    }
+  }
+  fun rhmiUnregisterApp(appIdArg: String, callback: () -> Unit) {
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.HeadunitApi.rhmiUnregisterApp", codec)
+    channel.send(listOf(appIdArg)) {
+      callback()
+    }
+  }
+  fun rhmiSetData(appIdArg: String, modelIdArg: Long, valueArg: Any?, callback: () -> Unit) {
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetData", codec)
+    channel.send(listOf(appIdArg, modelIdArg, valueArg)) {
+      callback()
+    }
+  }
+  fun rhmiSetProperty(appIdArg: String, componentIdArg: Long, propertyIdArg: Long, valueArg: Any?, callback: () -> Unit) {
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.HeadunitApi.rhmiSetProperty", codec)
+    channel.send(listOf(appIdArg, componentIdArg, propertyIdArg, valueArg)) {
+      callback()
+    }
+  }
+  fun rhmiTriggerEvent(appIdArg: String, eventIdArg: Long, argsArg: Map<Long, Any?>, callback: () -> Unit) {
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.HeadunitApi.rhmiTriggerEvent", codec)
+    channel.send(listOf(appIdArg, eventIdArg, argsArg)) {
       callback()
     }
   }

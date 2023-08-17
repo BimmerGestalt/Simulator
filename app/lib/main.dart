@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:headunit/pigeon.dart';
+import 'package:headunit_example/rhmi.dart';
 import 'package:image/image.dart' as ImageManips;
 
 void main() {
@@ -23,6 +24,7 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
   final _serverPlugin = ServerApi();
 
   final amApps = <String, AMAppInfo>{};
+  final rhmiApps = <String, RHMIApp>{};
 
   @override
   void initState() {
@@ -72,6 +74,11 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
             ...amApps.entries.map((e) => AMAppInfoWidget(
                 server: _serverPlugin,
                 appInfo: e.value
+            )),
+            ... rhmiApps.values.map((app) => RHMIAppEntrybuttonWidget(
+                server: _serverPlugin,
+                app: app,
+                entryButton: app.description.entryButtons.values.first
             ))
           ],
         )
@@ -90,6 +97,40 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
   void amUnregisterApp(String appId) {
     setState(() {
       amApps.remove(appId);
+    });
+  }
+
+  @override
+  void rhmiRegisterApp(RHMIAppInfo appInfo) {
+    log("New RHMI app ${appInfo.appId}");
+    final description = appInfo.resources['DESCRIPTION'];
+    if (description != null) {
+      setState(() {
+        rhmiApps[appInfo.appId] = RHMIApp.loadResources(appInfo.appId, appInfo.resources);
+      });
+    }
+  }
+
+  @override
+  void rhmiSetData(String appId, int modelId, Object? value) {
+    // TODO: implement rhmiSetData
+  }
+
+  @override
+  void rhmiSetProperty(String appId, int componentId, int propertyId, Object? value) {
+    // TODO: implement rhmiSetProperty
+  }
+
+  @override
+  void rhmiTriggerEvent(String appId, int eventId, Map<int?, Object?> args) {
+    // TODO: implement rhmiTriggerEvent
+  }
+
+  @override
+  void rhmiUnregisterApp(String appId) {
+    log("Removed RHMI app $appId");
+    setState(() {
+      rhmiApps.remove(appId);
     });
   }
 }
@@ -118,6 +159,44 @@ class AMAppInfoWidget extends StatelessWidget {
             height: 48,
           ),
           label: Text(appInfo.name),
+        )
+      ],
+    );
+  }
+}
+
+class RHMIAppEntrybuttonWidget extends StatelessWidget {
+  const RHMIAppEntrybuttonWidget({
+    super.key,
+    required this.server,
+    required this.app,
+    required this.entryButton,
+  });
+  final ServerApi server;
+  final RHMIApp app;
+  final RHMIComponent entryButton;
+
+  @override
+  Widget build(BuildContext context) {
+    final textId = entryButton.models['model']?.properties['textId'];
+    log("Loaded textId $textId for entryButton for ${app.appId}");
+    final String? name = app.texts['en-US']?[textId];
+    log("Loaded name $name for entryButton for ${app.appId} from ${app.texts['en-US']}");
+    final imageId = entryButton.models['imageModel']?.properties['imageId'];
+    log("Loaded imageId $imageId for entryButton for ${app.appId}");
+    final Uint8List? imageData = app.images[imageId];
+    return Row(
+      children: [
+        TextButton.icon(
+          onPressed: () {
+          },
+          icon: imageData != null ? TransparentIcon(
+            iconData: imageData,
+            darkMode: MediaQuery.of(context).platformBrightness == Brightness.dark,
+            width: 48,
+            height: 48,
+          ) : const SizedBox(width: 48, height: 48),
+          label: Text(name ?? ""),
         )
       ],
     );

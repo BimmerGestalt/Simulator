@@ -6,10 +6,14 @@ import de.bmw.idrive.BMWRemotingClient
 import de.bmw.idrive.BaseBMWRemotingServer
 import io.bimmergestalt.headunit.Utils.values
 import io.bimmergestalt.headunit.managers.AMManager
+import io.bimmergestalt.headunit.managers.RHMIManager
 import io.flutter.Log
 import org.apache.etch.util.core.io.Session
 
-class BMWRemotingServerImpl(val client: BMWRemotingClient,val amManager: AMManager): BaseBMWRemotingServer() {
+class BMWRemotingServerImpl(val client: BMWRemotingClient,
+                            val amManager: AMManager,
+                            val rhmiManager: RHMIManager,
+                            ): BaseBMWRemotingServer() {
 	/** The server side of each TCP connection */
 	companion object {
 		private const val TAG = "BMWRemotingServerImpl"
@@ -19,7 +23,9 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient,val amManager: AMManag
 	}
 
 	var amHandle: Int? = null
-	val rhmiHandles = SparseArrayCompat<String>()
+	var rhmiHandle: Int? = null
+	var rhmiAppId: String? = null
+	val rhmiResources = HashMap<BMWRemoting.RHMIResourceType, ByteArray>()
 	val cdsHandles = HashSet<Int>() // TODO value should be a subscription list or something
 
 	override fun _sessionNotify(event: Any?) {
@@ -27,10 +33,7 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient,val amManager: AMManag
 		super._sessionNotify(event)
 
 		if (event == Session.DOWN) {
-			Log.i(TAG, "Cleaning up disconnected rhmiApps: ${rhmiHandles.values().joinToString(",")}")
-
-			// clear out all the AM apps
-			Log.i(TAG, "Cleaning up disconnected amApps")
+			rhmi_dispose(rhmiHandle)
 			am_dispose(amHandle)
 		}
 		// TODO Callback
@@ -150,12 +153,12 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient,val amManager: AMManag
 
 	override fun rhmi_create(token: String?, metaData: BMWRemoting.RHMIMetaData?): Int {
 		Log.i(TAG, "rhmi_create vendor:${metaData?.vendor} id:${metaData?.id} name:${metaData?.name}")
-
-		// TODO check for duplicate names
+		metaData ?: throw BMWRemoting.IllegalArgumentException()
 
 		val handle = nextId
 		nextId++
-		rhmiHandles.put(handle, metaData?.name ?: "")
+		rhmiHandle = handle
+		rhmiAppId = metaData.name
 		return handle
 	}
 
@@ -175,18 +178,28 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient,val amManager: AMManag
 		data: ByteArray?,
 		type: BMWRemoting.RHMIResourceType?
 	) {
-		val rhmiApp = rhmiHandles[handle ?: 0]
-		// TODO add resource to the rhmi app
+		if (rhmiHandle == null || rhmiHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
+		}
+		type ?: return
+		data ?: return
+		rhmiResources[type] = data
 	}
 
 	override fun rhmi_initialize(handle: Int?) {
-		val rhmiApp = rhmiHandles[handle ?: 0]
-		Log.i(TAG, "rhmi_initialize name:$rhmiApp")
-		// TODO finalize the app and send callback to host
+		Log.i(TAG, "rhmi_initialize name:$rhmiAppId")
+		if (handle == null || rhmiHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
+		}
+		val rhmiAppId = rhmiAppId ?: return
+		rhmiManager.registerApp(handle, rhmiAppId, rhmiResources)
 	}
 
 	override fun rhmi_addActionEventHandler(handle: Int?, ident: String?, actionId: Int?) {
-		// TODO
+		if (handle == null || rhmiHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
+		}
+		rhmiManager.addActionHandler(handle, client)
 	}
 
 	override fun rhmi_addHmiEventHandler(
@@ -195,13 +208,20 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient,val amManager: AMManag
 		componentId: Int?,
 		eventId: Int?
 	) {
-		// TODO
+		if (handle == null || rhmiHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
+		}
+		rhmiManager.addEventHandler(handle, client)
 	}
 
 	override fun rhmi_setData(handle: Int?, modelId: Int?, value: Any?) {
-		// TODO
-		val rhmiApp = rhmiHandles[handle ?: 0]
-		Log.i(TAG, "rhmi_setData name:$rhmiApp modelId:$modelId value:$value")
+		if (handle == null || rhmiHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
+		}
+		Log.i(TAG, "rhmi_setData appId:$rhmiAppId modelId:$modelId value:$value")
+		val rhmiAppId = rhmiAppId ?: return
+		modelId ?: return
+		rhmiManager.setData(rhmiAppId, modelId, value)
 	}
 
 	override fun rhmi_setProperty(
@@ -210,27 +230,46 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient,val amManager: AMManag
 		propertyId: Int?,
 		values: MutableMap<*, *>?
 	) {
-		// TODO
-		val rhmiApp = rhmiHandles[handle ?: 0]
+		if (handle == null || rhmiHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
+		}
 		if (values?.size != 1) {
-			Log.i(TAG, "rhmi_setProperty name:$rhmiApp componentId:$componentId propertyId:$propertyId values:$values")
+			Log.i(TAG, "rhmi_setProperty appId:$rhmiAppId componentId:$componentId propertyId:$propertyId values:$values")
 		} else {
 			val value = values.values.first()
-			Log.i(TAG, "rhmi_setProperty name:$rhmiApp componentId:$componentId propertyId:$propertyId values:$value")
+			Log.i(TAG, "rhmi_setProperty appId:$rhmiAppId componentId:$componentId propertyId:$propertyId values:$value")
 		}
+		val rhmiAppId = rhmiAppId ?: return
+		componentId ?: return
+		propertyId ?: return
+		values ?: return
+		rhmiManager.setProperty(rhmiAppId, componentId, propertyId, values.values.first())
 	}
 
 	override fun rhmi_triggerEvent(handle: Int?, eventId: Int?, args: MutableMap<*, *>?) {
-		val rhmiApp = rhmiHandles[handle ?: 0]
-		Log.i(TAG, "rhmi_triggerEvent name:$rhmiApp eventId:$eventId args:$args")
+		if (handle == null || rhmiHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
+		}
+		Log.i(TAG, "rhmi_triggerEvent appId:$rhmiAppId eventId:$eventId args:$args")
+		val rhmiAppId = rhmiAppId ?: return
+		eventId ?: return
+		args ?: return
+		val parsedArgs: Map<Int, Any?> = args.filterKeys { it is Number }.mapKeys { (it.key as Number).toInt() }
+		rhmiManager.triggerEvent(rhmiAppId, eventId, parsedArgs)
 	}
 
 	override fun rhmi_dispose(handle: Int?) {
-		// TODO
-		val rhmiApp = rhmiHandles[handle ?: 0]
-		Log.i(TAG, "rhmi_dispose name:$rhmiApp")
-
-		rhmiHandles.remove(handle ?: 0)
+		Log.i(TAG, "rhmi_dispose")
+		if (rhmiHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
+		}
+		val rhmiHandle = rhmiHandle ?: return
+		rhmiManager.unregisterAppsByHandle(rhmiHandle)
+		rhmiManager.removeActionHandler(rhmiHandle)
+		rhmiManager.removeEventHandler(rhmiHandle)
+		this.rhmiHandle = null
+		this.rhmiAppId = null
+		this.rhmiResources.clear()
 	}
 
 	override fun av_create(instanceID: Int?, id: String?): Int = 0
