@@ -9,6 +9,9 @@ import 'package:headunit/pigeon.dart';
 import 'package:headunit_example/rhmi.dart';
 import 'package:headunit_example/rhmi_widgets.dart';
 
+
+final GlobalKey<NavigatorState> navKey = GlobalKey();
+
 void main() {
   runApp(const MyApp());
 }
@@ -63,6 +66,7 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
     final categories = entryButtonsByCategory.keys.sortedBy((element) => element);
 
     return MaterialApp(
+      navigatorKey: navKey,
       darkTheme: ThemeData(
         brightness: Brightness.dark,
       ),
@@ -137,6 +141,17 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
   @override
   void rhmiTriggerEvent(String appId, int eventId, Map<int?, Object?> args) {
     // TODO: implement rhmiTriggerEvent
+    final event = rhmiApps[appId]?.description.events[eventId];
+    if (event?.type == "focusEvent") {
+      final target = args[0];
+      final targetState = rhmiApps[appId]?.description.states[target];
+      if (targetState != null) {
+        navKey.currentState?.push(MaterialPageRoute(builder: (BuildContext context) {
+          return RHMIStateWidget(state: targetState);
+        }));
+      }
+      // TODO: components don't exist yet and won't have focus for a while
+    }
   }
 
   @override

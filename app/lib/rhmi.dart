@@ -69,6 +69,7 @@ class RHMIApp {
 class RHMIAppDescription {
   Map<String, RHMIComponent> entryButtons = {};
   Map<int, RHMIAction> actions = {};
+  Map<int, RHMIEvent> events = {};
   Map<int, RHMIModel> models = {};
   Map<int, RHMIComponent> components = {};
   Map<int, RHMIState> states = {};
@@ -105,6 +106,13 @@ class RHMIAppDescription {
           if (raAction != null) {
             app.actions[raAction.id] = raAction;
           }
+        }
+      });
+
+      pluginApp.getElement('events')?.childElements.forEach((node) {
+        final parsed = RHMIEvent.loadXml(node);
+        if (parsed.id > 0) {
+          app.events[parsed.id] = parsed;
         }
       });
 
@@ -160,10 +168,10 @@ class RHMIAction {
     return action;
   }
 
-  static Map<String, RHMIAction> loadReferencedActions(RHMIAppDescription app, Map<String, Object> attributes) {
+  static Map<String, RHMIAction> loadReferencedActions(RHMIAppDescription app, Map<String, String> attributes) {
     final Map<String, RHMIAction> actions = {};
     attributes.forEach((attrName, attrValue) {
-      final derefAction = app.actions[attrValue];
+      final derefAction = app.actions[int.tryParse(attrValue, radix: 10)];
       if (attrName.toLowerCase().endsWith("action") && derefAction != null) {
         actions[attrName] = derefAction;
       }
@@ -211,6 +219,24 @@ class RHMIHmiAction extends RHMIAction {
   }
 }
 
+class RHMIEvent {
+  RHMIEvent(this.id, this.type, this.attributes);
+  int id;
+  String type;
+
+  Map<String, String?> attributes = {};
+
+  static RHMIEvent loadXml(XmlElement node) {
+    final idNode = node.attributes.firstWhere((p0) => p0.name.local == 'id',
+        orElse: (() => XmlAttribute(XmlName.fromString(""), "-1")));
+    final id = int.parse(idNode.value);
+    final type = node.localName;
+    final attributeNodes = node.attributes.where((p0) => p0.name.local != 'id');
+    final attributes = {for (var attr in attributeNodes) attr.name.local: attr.value};
+    return RHMIEvent(id, type, attributes);
+  }
+}
+
 class RHMIModel {
   RHMIModel(this.id, this.type);
   int id;
@@ -231,10 +257,10 @@ class RHMIModel {
     return model;
   }
 
-  static Map<String, RHMIModel> loadReferencedModels(RHMIAppDescription app, Map<String, Object> attributes) {
+  static Map<String, RHMIModel> loadReferencedModels(RHMIAppDescription app, Map<String, String> attributes) {
     final Map<String, RHMIModel> models = {};
     attributes.forEach((attrName, attrValue) {
-      final derefModel = app.models[attrValue];
+      final derefModel = app.models[int.tryParse(attrValue, radix: 10)];
       if (attrName.toLowerCase().endsWith("model") && derefModel != null) {
         models[attrName] = derefModel;
       }
@@ -288,7 +314,7 @@ class RHMIComponent {
     final id = int.parse(idNode.value);
     final type = node.localName;
     final attributeNodes = node.attributes.where((p0) => p0.name.local != 'id');
-    final attributes = {for (var attr in attributeNodes) attr.name.local: int.tryParse(attr.value, radix: 10) ?? attr.value};
+    final attributes = {for (var attr in attributeNodes) attr.name.local: attr.value};
 
     final component = RHMIComponent(id, type);
     // TODO action
@@ -314,7 +340,7 @@ class RHMIState {
     final id = int.parse(idNode.value);
     final type = node.localName;
     final attributeNodes = node.attributes.where((p0) => p0.name.local != 'id');
-    final attributes = {for (var attr in attributeNodes) attr.name.local: int.tryParse(attr.value, radix: 10) ?? attr.value};
+    final attributes = {for (var attr in attributeNodes) attr.name.local: attr.value};
 
     final List<RHMIComponent> components = node.getElement('components')?.childElements.map((element) {
       return RHMIComponent.loadXml(app, element);

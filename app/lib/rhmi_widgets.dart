@@ -198,9 +198,11 @@ class RHMIStateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final id = state.id.toString();
+    final title = state.models["textModel"]?.value?.toString();   // TODO some apps don't update this until HmiEvent says they are visible
     return Scaffold(
       appBar: AppBar(
-        title: Text(state.id.toString()),
+        title: Text("$id $title"),
       ),
       body: ListView(
       )
