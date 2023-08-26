@@ -95,6 +95,7 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
     this.entryButtonsByCategory.clear();
     this.entryButtonsByCategory.addAll(entryButtonsByCategory);
   }
+
   @override
   void amRegisterApp(AMAppInfo appInfo) {
     setState(() {
@@ -125,7 +126,7 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
 
   @override
   void rhmiSetData(String appId, int modelId, Object? value) {
-    // TODO: implement rhmiSetData
+    rhmiApps[appId]?.description.setData(modelId, value);
   }
 
   @override

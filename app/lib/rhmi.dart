@@ -68,6 +68,7 @@ class RHMIApp {
 
 class RHMIAppDescription {
   Map<String, RHMIComponent> entryButtons = {};
+  Map<int, RHMIAction> actions = {};
   Map<int, RHMIModel> models = {};
   Map<int, RHMIComponent> components = {};
   Map<int, RHMIState> states = {};
@@ -79,11 +80,31 @@ class RHMIAppDescription {
     final app = RHMIAppDescription();
     final description = XmlDocument.parse(data);
     description.getElement('pluginApps')?.findElements('pluginApp').forEach((pluginApp) {
-      // TODO actions
       pluginApp.getElement('models')?.childElements.forEach((node) {
         final parsed = RHMIModel.loadXml(node);
         if (parsed.id > 0) {
           app.models[parsed.id] = parsed;
+        }
+      });
+
+      pluginApp.getElement('actions')?.childElements.forEach((node) {
+        final parsed = RHMIAction.loadXml(node);
+        if (parsed.id > 0) {
+          app.actions[parsed.id] = parsed;
+        }
+        if (parsed is RHMIHmiAction) {
+          parsed.linkModel(app.models);
+        }
+        if (parsed is RHMICombinedAction) {
+          final hmiAction = parsed.hmiAction;
+          if (hmiAction != null) {
+            app.actions[hmiAction.id] = hmiAction;
+            hmiAction.linkModel(app.models);
+          }
+          final raAction = parsed.raAction;
+          if (raAction != null) {
+            app.actions[raAction.id] = raAction;
+          }
         }
       });
 
@@ -104,11 +125,89 @@ class RHMIAppDescription {
     return app;
   }
 
-  void setData(int model, Object value) {
+  void setData(int model, Object? value) {
     if (!models.containsKey(model)) {
-      throw Exception("Unknown model $model");
+      log("Unknown model $model from ${models.keys}");
     }
+    log("Setting data $model to $value");
     models[model]?.value = value;
+  }
+}
+
+class RHMIAction {
+  RHMIAction(this.id, this.type, this.attributes);
+  int id;
+  String type;
+
+  Map<String, String?> attributes = {};
+
+  static RHMIAction loadXml(XmlElement node) {
+    final idNode = node.attributes.firstWhere((p0) => p0.name.local == 'id',
+        orElse: (() => XmlAttribute(XmlName.fromString(""), "-1")));
+    final id = int.parse(idNode.value);
+    final type = node.localName;
+    final attributeNodes = node.attributes.where((p0) => p0.name.local != 'id');
+    final attributes = {for (var attr in attributeNodes) attr.name.local: attr.value};
+
+    final action = switch (type) {
+      "combinedAction" => RHMICombinedAction(id, type, attributes),
+      "hmiAction" => RHMIHmiAction(id, type, attributes),
+      _ => RHMIAction(id, type, attributes),
+    };
+    if (action is RHMICombinedAction) {
+      action.loadChildren(node);
+    }
+    return action;
+  }
+
+  static Map<String, RHMIAction> loadReferencedActions(RHMIAppDescription app, Map<String, Object> attributes) {
+    final Map<String, RHMIAction> actions = {};
+    attributes.forEach((attrName, attrValue) {
+      final derefAction = app.actions[attrValue];
+      if (attrName.toLowerCase().endsWith("action") && derefAction != null) {
+        actions[attrName] = derefAction;
+      }
+    });
+    return actions;
+  }
+}
+
+class RHMICombinedAction extends RHMIAction {
+  RHMICombinedAction(super.id, super.type, super.attributes);
+
+  RHMIAction? raAction;
+  RHMIHmiAction? hmiAction;
+
+  void loadChildren(XmlNode combinedActionNode) {
+    combinedActionNode.getElement("actions")?.childElements.forEach((element) {
+      final action = RHMIAction.loadXml(element);
+      if (action.type == "raAction") {
+        raAction = action;
+      }
+      if (action is RHMIHmiAction && action.type == "hmiAction") {
+        hmiAction = action;
+      }
+    });
+  }
+
+  void linkModel(Map<int, RHMIModel> models) {
+    hmiAction?.linkModel(models);
+  }
+}
+
+class RHMIHmiAction extends RHMIAction {
+  RHMIHmiAction(super.id, super.type, super.attributes):
+      target = int.tryParse(attributes['target'] ?? '', radix: 10),
+      targetModelId =  int.tryParse(attributes['targetModel'] ?? '', radix: 10);
+
+  int? target;
+  int? targetModelId;
+  RHMIModel? targetModel;
+
+  void linkModel(Map<int, RHMIModel> models) {
+    if (targetModelId != null) {
+      targetModel = models[targetModelId];
+    }
   }
 }
 
@@ -117,18 +216,18 @@ class RHMIModel {
   int id;
   String type;
   Object? value;
-  Map<String, Object?> properties = {};
+  Map<String, Object?> attributes = {};
 
   static RHMIModel loadXml(XmlElement node) {
     final idNode = node.attributes.firstWhere((p0) => p0.name.local == 'id',
         orElse: (() => XmlAttribute(XmlName.fromString(""), "-1")));
     final id = int.parse(idNode.value);
     final type = node.localName;
-    final propertyNodes = node.attributes.where((p0) => p0.name.local != 'id');
-    final properties = {for (var attr in propertyNodes) attr.name.local: int.tryParse(attr.value, radix: 10) ?? attr.value};
+    final attributeNodes = node.attributes.where((p0) => p0.name.local != 'id');
+    final attributes = {for (var attr in attributeNodes) attr.name.local: int.tryParse(attr.value, radix: 10) ?? attr.value};
 
     final model = RHMIModel(id, type);
-    model.properties.addAll(properties);
+    model.attributes.addAll(attributes);
     return model;
   }
 
@@ -179,6 +278,7 @@ class RHMIComponent {
 
   int id;
   String type;
+  Map<String, RHMIAction> actions = {};
   Map<String, RHMIModel> models = {};
   Map<int, String> properties = {};
 
@@ -192,6 +292,7 @@ class RHMIComponent {
 
     final component = RHMIComponent(id, type);
     // TODO action
+    component.actions.addAll(RHMIAction.loadReferencedActions(app, attributes));
     component.models.addAll(RHMIModel.loadReferencedModels(app, attributes));
     component.properties.addAll(RHMIProperty.loadProperties(node.getElement('properties')));
     return component;

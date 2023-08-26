@@ -98,16 +98,51 @@ data class RHMIAppInfo (
     )
   }
 }
+
+@Suppress("UNCHECKED_CAST")
+private object ServerApiCodec : StandardMessageCodec() {
+  override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
+    return when (type) {
+      128.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          AMAppInfo.fromList(it)
+        }
+      }
+      129.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          RHMIAppInfo.fromList(it)
+        }
+      }
+      else -> super.readValueOfType(type, buffer)
+    }
+  }
+  override fun writeValue(stream: ByteArrayOutputStream, value: Any?)   {
+    when (value) {
+      is AMAppInfo -> {
+        stream.write(128)
+        writeValue(stream, value.toList())
+      }
+      is RHMIAppInfo -> {
+        stream.write(129)
+        writeValue(stream, value.toList())
+      }
+      else -> super.writeValue(stream, value)
+    }
+  }
+}
+
 /** Generated interface from Pigeon that represents a handler of messages from Flutter. */
 interface ServerApi {
   fun getPlatformVersion(): String
   fun startServer()
   fun amTrigger(appId: String)
+  fun rhmiAction(appId: String, actionId: Long, args: Map<Long, Any?>, callback: (Result<Boolean>) -> Unit)
+  fun rhmiEvent(appId: String, componentId: Long, eventId: Long, args: Map<Long, Any?>)
 
   companion object {
     /** The codec used by ServerApi. */
     val codec: MessageCodec<Any?> by lazy {
-      StandardMessageCodec()
+      ServerApiCodec
     }
     /** Sets up an instance of `ServerApi` to handle messages through the `binaryMessenger`. */
     @Suppress("UNCHECKED_CAST")
@@ -154,6 +189,50 @@ interface ServerApi {
             var wrapped: List<Any?>
             try {
               api.amTrigger(appIdArg)
+              wrapped = listOf<Any?>(null)
+            } catch (exception: Throwable) {
+              wrapped = wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.ServerApi.rhmiAction", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val appIdArg = args[0] as String
+            val actionIdArg = args[1].let { if (it is Int) it.toLong() else it as Long }
+            val argsArg = args[2] as Map<Long, Any?>
+            api.rhmiAction(appIdArg, actionIdArg, argsArg) { result: Result<Boolean> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(wrapError(error))
+              } else {
+                val data = result.getOrNull()
+                reply.reply(wrapResult(data))
+              }
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.ServerApi.rhmiEvent", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val appIdArg = args[0] as String
+            val componentIdArg = args[1].let { if (it is Int) it.toLong() else it as Long }
+            val eventIdArg = args[2].let { if (it is Int) it.toLong() else it as Long }
+            val argsArg = args[3] as Map<Long, Any?>
+            var wrapped: List<Any?>
+            try {
+              api.rhmiEvent(appIdArg, componentIdArg, eventIdArg, argsArg)
               wrapped = listOf<Any?>(null)
             } catch (exception: Throwable) {
               wrapped = wrapError(exception)

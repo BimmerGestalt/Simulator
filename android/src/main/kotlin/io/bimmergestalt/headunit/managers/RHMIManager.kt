@@ -15,6 +15,7 @@ class RHMIManager(val callbacks: HeadunitCallbacks) {
 	private val knownApps = HashMap<String, RHMIAppInfo>()
 	private val actionHandlers = HashMap<Int, BMWRemotingClient>()
 	private val eventHandlers = HashMap<Int, BMWRemotingClient>()
+	private val actionCallbacks = HashMap<Int, HashMap<Int, (Result<Boolean>) -> Unit>>()
 
 	fun registerApp(handle: Int, appId: String, resources: Map<RHMIResourceType, ByteArray>) {
 		val existing = knownApps[appId]
@@ -93,5 +94,32 @@ class RHMIManager(val callbacks: HeadunitCallbacks) {
 	}
 	fun triggerEvent(appId: String, eventId: Int, args: Map<Int, Any?>) {
 		callbacks.rhmiTriggerEvent(appId, eventId, args)
+	}
+
+	fun onActionEvent(appId: String, actionId: Int, args: Map<*, *>, callback: (Result<Boolean>) -> Unit) {
+		val existing = knownApps[appId]
+		if (existing != null) {
+			actionHandlers[existing.handle.toInt()]?.rhmi_onActionEvent(existing.handle.toInt(), "", actionId, args)
+
+			if (!actionCallbacks.containsKey(existing.handle.toInt())) {
+				actionCallbacks[existing.handle.toInt()] = HashMap()
+			}
+			actionCallbacks[existing.handle.toInt()]?.put(actionId, callback)
+		}
+	}
+
+	fun onHmiEvent(appId: String, componentId: Int, eventId: Int, args: Map<*, *>) {
+		val existing = knownApps[appId]
+		if (existing != null) {
+			actionHandlers[existing.handle.toInt()]?.rhmi_onHmiEvent(existing.handle.toInt(), "", componentId, eventId, args)
+		}
+	}
+
+	fun ackActionEvent(appId: String, actionId: Int, success: Boolean) {
+		val existing = knownApps[appId]
+		if (existing != null) {
+			val callback = actionCallbacks[existing.handle.toInt()]?.remove(actionId)
+			callback?.invoke(Result.success(success))
+		}
 	}
 }

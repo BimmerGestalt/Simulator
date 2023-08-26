@@ -1,6 +1,8 @@
 import 'dart:developer';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:headunit/pigeon.dart';
 import 'package:image/image.dart' as image_manips;
@@ -13,24 +15,68 @@ class RHMIEntryButtonClickable {
   final String name;
   final Uint8List? iconData;
   final String category;
-  final void Function() onClick;
+  final Future<void> Function(BuildContext) onClick;
 
   static RHMIEntryButtonClickable wrapAMAppInfo(ServerApi server, AMAppInfo appInfo) {
-    return RHMIEntryButtonClickable(appInfo.name, appInfo.iconData, appInfo.category, () =>
-      server.amTrigger(appInfo.appId)
-    );
+    return RHMIEntryButtonClickable(appInfo.name, appInfo.iconData, appInfo.category, (context) async {
+      server.amTrigger(appInfo.appId);
+    });
   }
   static RHMIEntryButtonClickable wrapRhmiEntryButton(ServerApi server, RHMIApp app, RHMIComponent entryButton, String category) {
-    final textId = entryButton.models['model']?.properties['textId'];
+    final textId = entryButton.models['model']?.attributes['textId'];
     log("Loaded textId $textId for entryButton for ${app.appId}");
     final String name = app.texts['en-US']?[textId] ?? "";
     log("Loaded name $name for entryButton for ${app.appId} from ${app.texts['en-US']}");
-    final imageId = entryButton.models['imageModel']?.properties['imageId'];
+    final imageId = entryButton.models['imageModel']?.attributes['imageId'];
     log("Loaded imageId $imageId for entryButton for ${app.appId}");
     final Uint8List? iconData = app.images[imageId];
 
-    return RHMIEntryButtonClickable(name, iconData, category, () => {
-        // TODO server.rhmiCallback
+    return RHMIEntryButtonClickable(name, iconData, category, (context) async {
+      final navigator = Navigator.of(context);
+      final action = entryButton.actions["action"];
+      if (action is RHMIAction) {
+        final ack = server.rhmiAction(app.appId, action.id, {});
+        ack.timeout(const Duration(seconds: 3), onTimeout: () {
+          return false;
+        });
+        await ack;
+      }
+      if (action is RHMIHmiAction) {
+        final targetModelValue = action.targetModel?.value;
+        log("Loaded direct hmiModel ${action.targetModelId}:$targetModelValue");
+        final targetStateId = (targetModelValue is int) ? targetModelValue : action.target ?? -1;
+        final targetState = app.description.states[targetStateId];
+        if (targetState != null) {
+          Navigator.of(context).push(MaterialPageRoute(builder: (BuildContext context) {
+            return RHMIStateWidget(state: targetState);
+          }));
+        }
+      }
+      if (action is RHMICombinedAction) {
+        final raAction = action.raAction;
+        log("Triggering raAction $raAction");
+        if (raAction != null) {
+          final ack = server.rhmiAction(app.appId, raAction.id, {});
+          if (action.attributes["sync"] == "true") {
+            ack.timeout(const Duration(seconds: 3), onTimeout: () {
+              return false;
+            });
+            log("Got acknowledgement ${await ack}");
+            if (await ack == false) {
+              return;
+            }
+          }
+        }
+        final targetModelValue = action.hmiAction?.targetModel?.value;
+        log("Loaded hmiModel ${action.hmiAction?.targetModelId}:$targetModelValue");
+        final targetStateId = (targetModelValue is int) ? targetModelValue : action.hmiAction?.target ?? -1;
+        final targetState = app.description.states[targetStateId];
+        if (targetState != null) {
+          navigator.push(MaterialPageRoute(builder: (BuildContext context) {
+            return RHMIStateWidget(state: targetState);
+          }));
+        }
+      }
     });
   }
 }
@@ -55,7 +101,6 @@ class RHMISectionWidget extends StatelessWidget {
       ]
     );
   }
-
 }
 
 class RHMIEntryButtonWidget extends StatelessWidget {
@@ -71,7 +116,7 @@ class RHMIEntryButtonWidget extends StatelessWidget {
     return Row(
       children: [
         TextButton.icon(
-          onPressed: entryButton.onClick,
+          onPressed: () => entryButton.onClick(context),
           icon: iconData != null ? TransparentIcon(
             iconData: iconData,
             darkMode: MediaQuery.of(context).platformBrightness == Brightness.dark,
@@ -140,6 +185,25 @@ class TransparentIcon extends StatelessWidget {
             width: width.toDouble(),
           );
         }
+    );
+  }
+}
+
+class RHMIStateWidget extends StatelessWidget {
+  const RHMIStateWidget({
+    super.key,
+    required this.state,
+  });
+  final RHMIState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(state.id.toString()),
+      ),
+      body: ListView(
+      )
     );
   }
 }

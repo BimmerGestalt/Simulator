@@ -33,6 +33,8 @@ abstract class ServerApi {
   void startServer();
 
   void amTrigger(String appId);
+  @async bool rhmiAction(String appId, int actionId, Map<int, Object?> args);
+  void rhmiEvent(String appId, int componentId, int eventId, Map<int, Object?> args);
 }
 @FlutterApi()
 abstract class HeadunitApi {

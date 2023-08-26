@@ -214,6 +214,22 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient,
 		rhmiManager.addEventHandler(handle, client)
 	}
 
+	override fun rhmi_ackActionEvent(
+		handle: Int?,
+		actionId: Int?,
+		confirmId: Int?,
+		success: Boolean?
+	) {
+		val appId: String? = rhmiAppId
+		if (appId == null || handle == null || rhmiHandle != handle) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
+		}
+		if (actionId == null || success == null) {
+			throw BMWRemoting.IllegalArgumentException(-1, "Missing parameters")
+		}
+		rhmiManager.ackActionEvent(appId, actionId, success)
+	}
+
 	override fun rhmi_setData(handle: Int?, modelId: Int?, value: Any?) {
 		if (handle == null || rhmiHandle != handle) {
 			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")

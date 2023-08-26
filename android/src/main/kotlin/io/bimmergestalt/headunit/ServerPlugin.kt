@@ -5,7 +5,6 @@ import android.os.HandlerThread
 import io.bimmergestalt.headunit.managers.AMManager
 import io.bimmergestalt.headunit.managers.RHMIManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.plugin.common.MethodChannel
 
 import io.bimmergestalt.idriveconnectkit.RHMIDimensions
 
@@ -40,6 +39,18 @@ class ServerPlugin: FlutterPlugin, ServerApi {
   override fun amTrigger(appId: String) {
     ioHandler.post {
       amManager.onAppEvent(appId)
+    }
+  }
+
+  override fun rhmiAction(appId: String, actionId: Long, args: Map<Long, Any?>, callback: (Result<Boolean>) -> Unit) {
+    ioHandler.post {
+      rhmiManager.onActionEvent(appId, actionId.toInt(), args, callback)
+    }
+  }
+
+  override fun rhmiEvent(appId: String, componentId: Long, eventId: Long, args: Map<Long, Any?>) {
+    ioHandler.post {
+      rhmiManager.onHmiEvent(appId, componentId.toInt(), eventId.toInt(), args)
     }
   }
 }
