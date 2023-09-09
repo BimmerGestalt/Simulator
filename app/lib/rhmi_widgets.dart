@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:headunit/pigeon.dart';
 import 'package:image/image.dart' as image_manips;
+import 'package:visibility_detector/visibility_detector.dart';
 
 import 'rhmi.dart';
 
@@ -73,7 +75,14 @@ class RHMIEntryButtonClickable {
         final targetState = app.description.states[targetStateId];
         if (targetState != null) {
           navigator.push(MaterialPageRoute(builder: (BuildContext context) {
-            return RHMIStateWidget(state: targetState);
+            return VisibilityDetector(key: Key("visibility-$targetStateId"),
+                onVisibilityChanged: (visibilityInfo) {
+                  final visible = visibilityInfo.visibleFraction != 0;
+                  server.rhmiEvent(app.appId, targetStateId, 1, {4: visible});  // focus
+                  server.rhmiEvent(app.appId, targetStateId, 11, {23: visible});  // visibility
+                },
+                child: RHMIStateWidget(state: targetState)
+            );
           }));
         }
       }
@@ -198,14 +207,119 @@ class RHMIStateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final id = state.id.toString();
-    final title = state.models["textModel"]?.value?.toString();   // TODO some apps don't update this until HmiEvent says they are visible
     return Scaffold(
       appBar: AppBar(
-        title: Text("$id $title"),
+        title: Row(
+          children: [
+            Text(state.id.toString()),
+            RHMITextModelWidget(model: state.models["textModel"])
+          ],
+        )
       ),
       body: ListView(
+        children: [
+          ... state.components.map((e) =>
+          switch (e.type) {
+            "button" => RHMITextWidget(textComponent: e),
+            "label" => RHMITextWidget(textComponent: e),
+            "list" => RHMIListWidget(listComponent: e),
+            _ => const SizedBox(),
+          })
+        ],
       )
+    );
+  }
+}
+
+class RHMITextWidget extends StatelessWidget {
+  const RHMITextWidget({
+    super.key,
+    required this.textComponent,
+    this.modelName = "model",
+  });
+
+  final RHMIComponent textComponent;
+  final String modelName;
+
+  @override
+  Widget build(BuildContext context) {
+    final model = textComponent.models[modelName];
+    if (model != null) {
+      return RHMITextModelWidget(model: model);
+    }
+    return const Text("");
+  }
+}
+
+class RHMITextModelWidget extends StatelessWidget {
+  const RHMITextModelWidget({
+    super.key,
+    required this.model,
+  });
+
+  final RHMIModel? model;
+
+  @override
+  Widget build(BuildContext context) {
+    final model = this.model;
+    if (model == null) {
+      return const Text("");
+    }
+    return ListenableBuilder(
+        listenable: model,
+        builder: (context, child) {
+          return Text(model.value?.toString() ?? "");
+        }
+    );
+  }
+}
+
+class RHMIListWidget extends StatelessWidget {
+  const RHMIListWidget({
+    super.key,
+    required this.listComponent,
+    this.modelName = "model",
+  });
+
+  final RHMIComponent listComponent;
+  final String modelName;
+
+  Widget renderCell(Object value, {required bool darkMode}) {
+    if (value is Uint8List) {
+      return TransparentIcon(iconData: value, darkMode: darkMode, width: 96, height: 96);
+    } else {
+      return Text(value.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final model = listComponent.models[modelName];
+    if (model == null) {
+      return const Text("");
+    }
+    return ListenableBuilder(
+      listenable: model,
+      builder: (context, child) {
+        final value = model.value;
+        if (value is List) {
+          return Table(
+            // TODO ColumnWidths based on RHMI Property
+            children: [
+              ... value.map((row) => TableRow(
+                  children: [
+                    ...(row as List).map((e) => renderCell(
+                      e,
+                      darkMode: MediaQuery.of(context).platformBrightness == Brightness.dark
+                    ))
+                  ]
+                ))
+            ]
+          );
+        } else {
+          return const Text("");
+        }
+      }
     );
   }
 }

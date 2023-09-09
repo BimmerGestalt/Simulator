@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
+import 'package:flutter/material.dart';
 import 'package:xml/xml.dart';
 
 class RHMIApp {
@@ -237,11 +238,10 @@ class RHMIEvent {
   }
 }
 
-class RHMIModel {
-  RHMIModel(this.id, this.type);
+class RHMIModel extends ValueNotifier<Object?> {
+  RHMIModel(this.id, this.type) : super(null);
   int id;
   String type;
-  Object? value;
   Map<String, Object?> attributes = {};
 
   static RHMIModel loadXml(XmlElement node) {
