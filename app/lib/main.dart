@@ -141,13 +141,14 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
   @override
   void rhmiTriggerEvent(String appId, int eventId, Map<int?, Object?> args) {
     // TODO: implement rhmiTriggerEvent
-    final event = rhmiApps[appId]?.description.events[eventId];
-    if (event?.type == "focusEvent") {
+    final app = rhmiApps[appId];
+    final event = app?.description.events[eventId];
+    if (app != null && event?.type == "focusEvent") {
       final target = args[0];
       final targetState = rhmiApps[appId]?.description.states[target];
       if (targetState != null) {
         navKey.currentState?.push(MaterialPageRoute(builder: (BuildContext context) {
-          return RHMIStateWidget(state: targetState);
+          return RHMIStateWidget(app: app, state: targetState);
         }));
       }
       // TODO: components don't exist yet and won't have focus for a while

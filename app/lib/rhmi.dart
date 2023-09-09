@@ -353,6 +353,10 @@ class RHMIState {
     final state = toolbarComponents.isNotEmpty ?
       RHMIToolbarState(id, type) : RHMIState(id, type);
 
+    if (state is RHMIToolbarState) {
+      state.toolbarComponents.addAll(toolbarComponents);
+
+    }
     state.components.addAll(components);
     state.properties.addAll(RHMIProperty.loadProperties(node.getElement('properties')));
     state.models.addAll(RHMIModel.loadReferencedModels(app, attributes));

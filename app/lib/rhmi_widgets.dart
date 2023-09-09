@@ -49,8 +49,8 @@ class RHMIEntryButtonClickable {
         final targetStateId = (targetModelValue is int) ? targetModelValue : action.target ?? -1;
         final targetState = app.description.states[targetStateId];
         if (targetState != null) {
-          Navigator.of(context).push(MaterialPageRoute(builder: (BuildContext context) {
-            return RHMIStateWidget(state: targetState);
+          navigator.push(MaterialPageRoute(builder: (BuildContext context) {
+            return RHMIStateWidget(app: app, state: targetState);
           }));
         }
       }
@@ -81,7 +81,7 @@ class RHMIEntryButtonClickable {
                   server.rhmiEvent(app.appId, targetStateId, 1, {4: visible});  // focus
                   server.rhmiEvent(app.appId, targetStateId, 11, {23: visible});  // visibility
                 },
-                child: RHMIStateWidget(state: targetState)
+                child: RHMIStateWidget(app: app, state: targetState)
             );
           }));
         }
@@ -201,27 +201,50 @@ class TransparentIcon extends StatelessWidget {
 class RHMIStateWidget extends StatelessWidget {
   const RHMIStateWidget({
     super.key,
+    required this.app,
     required this.state,
   });
+  final RHMIApp app;
   final RHMIState state;
 
   @override
   Widget build(BuildContext context) {
+    Drawer? drawer;
+    final state = this.state;
+    if (state is RHMIToolbarState) {
+      List<Widget> toolbar = [];
+      toolbar = state.toolbarComponents.map((e) => RHMIButtonWidget(app: app, component: e)).toList();
+      drawer = Drawer(
+          child: ListView(
+            children: [
+              Row(
+                children: [
+                  BackButton(
+                    onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+                  )
+                ],
+              ),
+              ... toolbar
+            ]
+          )
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
             Text(state.id.toString()),
-            RHMITextModelWidget(model: state.models["textModel"])
+            RHMITextModelWidget(app: app, model: state.models["textModel"])
           ],
         )
       ),
+      drawer: drawer,
       body: ListView(
         children: [
           ... state.components.map((e) =>
           switch (e.type) {
-            "button" => RHMITextWidget(textComponent: e),
-            "label" => RHMITextWidget(textComponent: e),
+            "button" => RHMIButtonWidget(app: app, component: e),
+            "label" => RHMITextWidget(app: app, component: e),
             "list" => RHMIListWidget(listComponent: e),
             _ => const SizedBox(),
           })
@@ -231,32 +254,97 @@ class RHMIStateWidget extends StatelessWidget {
   }
 }
 
+class RHMIButtonWidget extends StatelessWidget {
+  const RHMIButtonWidget({
+    super.key,
+    required this.app,
+    required this.component,
+  });
+
+  final RHMIApp app;
+  final RHMIComponent component;
+
+  @override
+  Widget build(BuildContext context) {
+    final model = component.models["model"] ?? component.models["tooltipModel"];
+    final imageModel = component.models["imageModel"];
+    List<Widget> widgets = [];
+    if (imageModel != null) {
+      widgets.add(RHMIImageModelWidget(app: app, model: imageModel));
+    }
+    if (model != null) {
+      widgets.add(RHMITextModelWidget(app: app, model: model));
+    }
+    return Row(
+      children: widgets,
+    );
+  }
+}
+
 class RHMITextWidget extends StatelessWidget {
   const RHMITextWidget({
     super.key,
-    required this.textComponent,
+    required this.app,
+    required this.component,
     this.modelName = "model",
   });
 
-  final RHMIComponent textComponent;
+  final RHMIApp app;
+  final RHMIComponent component;
   final String modelName;
 
   @override
   Widget build(BuildContext context) {
-    final model = textComponent.models[modelName];
+    final model = component.models[modelName];
     if (model != null) {
-      return RHMITextModelWidget(model: model);
+      return RHMITextModelWidget(app: app, model: model);
     }
     return const Text("");
+  }
+}
+
+class RHMIImageModelWidget extends StatelessWidget {
+  const RHMIImageModelWidget({
+    super.key,
+    required this.app,
+    required this.model,
+  });
+
+  final RHMIApp app;
+  final RHMIModel? model;
+
+  @override
+  Widget build(BuildContext context) {
+    final model = this.model;
+    if (model == null) {
+      return const Text("");
+    }
+    final darkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
+    return ListenableBuilder(
+        listenable: model,
+        builder: (context, child) {
+          final value = model.type == "imageIdModel"
+              ? app.images[model.value] ?? app.images[model.attributes["imageId"]]
+              : model.value;
+          if (value is Uint8List) {
+            return TransparentIcon(
+                iconData: value, darkMode: darkMode, width: 48, height: 48
+            );
+          }
+          return const SizedBox(width: 48, height: 48);
+        }
+    );
   }
 }
 
 class RHMITextModelWidget extends StatelessWidget {
   const RHMITextModelWidget({
     super.key,
+    required this.app,
     required this.model,
   });
 
+  final RHMIApp app;
   final RHMIModel? model;
 
   @override
@@ -268,7 +356,11 @@ class RHMITextModelWidget extends StatelessWidget {
     return ListenableBuilder(
         listenable: model,
         builder: (context, child) {
-          return Text(model.value?.toString() ?? "");
+          if (model.type == "textIdModel") {
+            return Text(app.texts["en-US"]?[model.value] ?? "");
+          } else {
+            return Text(model.value?.toString() ?? "");
+          }
         }
     );
   }
