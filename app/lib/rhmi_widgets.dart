@@ -3,6 +3,9 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:headunit/pigeon.dart';
@@ -11,83 +14,110 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 import 'rhmi.dart';
 
-class RHMIEntryButtonClickable {
-  RHMIEntryButtonClickable(this.name, this.iconData, this.category, this.onClick);
+class AMButtonClickable extends StatelessWidget {
+  const AMButtonClickable({super.key, required this.callbacks, required this.appId, required this.child});
+
+  final ServerApi callbacks;
+  final String appId;
+  final StatelessWidget child;
+
+  void onTap() async {
+    callbacks.amTrigger(appId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell (  // TODO support other themes
+        onTap: () => onTap(),
+        child: child
+    );
+  }
+}
+class RHMIButtonClickable extends StatelessWidget {
+  const RHMIButtonClickable({super.key, required this.callbacks, required this.app, required this.component, required this.child});
+
+  final ServerApi callbacks;
+  final RHMIApp app;
+  final RHMIComponent component;
+  final StatelessWidget child;
+
+  Future<bool> dispatchAction(int actionId) async {
+    final ack = callbacks.rhmiAction(app.appId, actionId, {});
+    ack.timeout(const Duration(seconds: 3), onTimeout: () {
+      return false;
+    });
+    return await ack;
+  }
+
+  openState(NavigatorState navigator, int stateId) {
+    final targetState = app.description.states[stateId];
+    if (targetState != null) {
+      navigator.push(MaterialPageRoute(builder: (BuildContext context) {
+        return VisibilityDetector(key: Key("visibility-$stateId"),
+          onVisibilityChanged: (visibilityInfo) {
+            final visible = visibilityInfo.visibleFraction != 0;
+            callbacks.rhmiEvent(app.appId, stateId, 1, {4: visible});  // focus
+            callbacks.rhmiEvent(app.appId, stateId, 11, {23: visible});  // visibility
+          },
+          child: RHMIStateWidget(callbacks: callbacks, app: app, state: targetState)
+        );
+      }));
+    }
+  }
+
+  void onTap(NavigatorState navigator) async {
+    final action = component.actions['action'];
+
+    if (action is RHMIAction) {
+      dispatchAction(action.id);
+    }
+    if (action is RHMIHmiAction) {
+      final targetModelValue = action.targetModel?.value;
+      log("Loaded direct hmiModel ${action.targetModelId}:$targetModelValue");
+      final targetStateId = (targetModelValue is int) ? targetModelValue : action.target ?? -1;
+      openState(navigator, targetStateId);
+    }
+    if (action is RHMICombinedAction) {
+      final raAction = action.raAction;
+      log("Triggering raAction $raAction");
+      if (raAction != null) {
+        if (action.attributes["sync"] == "true") {
+          final ack = dispatchAction(action.id);
+          log("Got acknowledgement ${await ack}");
+          if (await ack == false) {
+            return;
+          }
+        } else {
+          callbacks.rhmiAction(app.appId, raAction.id, {});
+        }
+      }
+      final targetModelValue = action.hmiAction?.targetModel?.value;
+      log("Loaded hmiModel ${action.hmiAction?.targetModelId}:$targetModelValue");
+      final targetStateId = (targetModelValue is int) ? targetModelValue : action.hmiAction?.target ?? -1;
+      openState(navigator, targetStateId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final action = component.actions['action'];
+    if (action != null) {
+      return InkWell (  // TODO support other themes
+        onTap: () => onTap(Navigator.of(context)),
+        child: child
+      );
+    } else {
+      return child;
+    }
+  }
+}
+
+class RHMIEntryButton {
+  RHMIEntryButton(this.name, this.iconData, this.category);
 
   final String name;
   final Uint8List? iconData;
   final String category;
-  final Future<void> Function(BuildContext) onClick;
-
-  static RHMIEntryButtonClickable wrapAMAppInfo(ServerApi server, AMAppInfo appInfo) {
-    return RHMIEntryButtonClickable(appInfo.name, appInfo.iconData, appInfo.category, (context) async {
-      server.amTrigger(appInfo.appId);
-    });
-  }
-  static RHMIEntryButtonClickable wrapRhmiEntryButton(ServerApi server, RHMIApp app, RHMIComponent entryButton, String category) {
-    final textId = entryButton.models['model']?.attributes['textId'];
-    log("Loaded textId $textId for entryButton for ${app.appId}");
-    final String name = app.texts['en-US']?[textId] ?? "";
-    log("Loaded name $name for entryButton for ${app.appId} from ${app.texts['en-US']}");
-    final imageId = entryButton.models['imageModel']?.attributes['imageId'];
-    log("Loaded imageId $imageId for entryButton for ${app.appId}");
-    final Uint8List? iconData = app.images[imageId];
-
-    return RHMIEntryButtonClickable(name, iconData, category, (context) async {
-      final navigator = Navigator.of(context);
-      final action = entryButton.actions["action"];
-      if (action is RHMIAction) {
-        final ack = server.rhmiAction(app.appId, action.id, {});
-        ack.timeout(const Duration(seconds: 3), onTimeout: () {
-          return false;
-        });
-        await ack;
-      }
-      if (action is RHMIHmiAction) {
-        final targetModelValue = action.targetModel?.value;
-        log("Loaded direct hmiModel ${action.targetModelId}:$targetModelValue");
-        final targetStateId = (targetModelValue is int) ? targetModelValue : action.target ?? -1;
-        final targetState = app.description.states[targetStateId];
-        if (targetState != null) {
-          navigator.push(MaterialPageRoute(builder: (BuildContext context) {
-            return RHMIStateWidget(app: app, state: targetState);
-          }));
-        }
-      }
-      if (action is RHMICombinedAction) {
-        final raAction = action.raAction;
-        log("Triggering raAction $raAction");
-        if (raAction != null) {
-          final ack = server.rhmiAction(app.appId, raAction.id, {});
-          if (action.attributes["sync"] == "true") {
-            ack.timeout(const Duration(seconds: 3), onTimeout: () {
-              return false;
-            });
-            log("Got acknowledgement ${await ack}");
-            if (await ack == false) {
-              return;
-            }
-          }
-        }
-        final targetModelValue = action.hmiAction?.targetModel?.value;
-        log("Loaded hmiModel ${action.hmiAction?.targetModelId}:$targetModelValue");
-        final targetStateId = (targetModelValue is int) ? targetModelValue : action.hmiAction?.target ?? -1;
-        final targetState = app.description.states[targetStateId];
-        if (targetState != null) {
-          navigator.push(MaterialPageRoute(builder: (BuildContext context) {
-            return VisibilityDetector(key: Key("visibility-$targetStateId"),
-                onVisibilityChanged: (visibilityInfo) {
-                  final visible = visibilityInfo.visibleFraction != 0;
-                  server.rhmiEvent(app.appId, targetStateId, 1, {4: visible});  // focus
-                  server.rhmiEvent(app.appId, targetStateId, 11, {23: visible});  // visibility
-                },
-                child: RHMIStateWidget(app: app, state: targetState)
-            );
-          }));
-        }
-      }
-    });
-  }
 }
 
 class RHMISectionWidget extends StatelessWidget {
@@ -97,7 +127,7 @@ class RHMISectionWidget extends StatelessWidget {
     required this.buttons,
   });
   final String name;
-  final List<RHMIEntryButtonClickable> buttons;
+  final List<StatelessWidget> buttons;
 
   @override
   Widget build(BuildContext context) {
@@ -106,7 +136,7 @@ class RHMISectionWidget extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
         Text(name),
-        ...buttons.map((e) => RHMIEntryButtonWidget(entryButton: e))
+        ...buttons
       ]
     );
   }
@@ -117,24 +147,46 @@ class RHMIEntryButtonWidget extends StatelessWidget {
     super.key,
     required this.entryButton,
   });
-  final RHMIEntryButtonClickable entryButton;
+  final RHMIEntryButton entryButton;
 
   @override
   Widget build(BuildContext context) {
     final iconData = entryButton.iconData;
-    return Row(
-      children: [
-        TextButton.icon(
-          onPressed: () => entryButton.onClick(context),
-          icon: iconData != null ? TransparentIcon(
-            iconData: iconData,
-            darkMode: MediaQuery.of(context).platformBrightness == Brightness.dark,
-            width: 48,
-            height: 48,
-          ) : const SizedBox(width: 48, height: 48),
-          label: Text(entryButton.name),
-        )
-      ],
+    final icon = iconData != null ? TransparentIcon(
+      iconData: iconData,
+      darkMode: MediaQuery.of(context).platformBrightness == Brightness.dark,
+      width: 48,
+      height: 48,
+    ) : const SizedBox(width: 48, height: 48);
+    return ImageLabeled(
+      image: icon,
+      text: Text(entryButton.name)
+    );
+  }
+
+  static StatelessWidget wrapAMAppInfo(ServerApi server, AMAppInfo appInfo) {
+    final entryButton = RHMIEntryButton(appInfo.name, appInfo.iconData, appInfo.category);
+    return AMButtonClickable(
+        callbacks: server,
+        appId: appInfo.appId,
+        child: RHMIEntryButtonWidget(entryButton: entryButton)
+    );
+  }
+  static StatelessWidget wrapRhmiEntryButton(ServerApi server, RHMIApp app, RHMIComponent entryButtonComponent, String category) {
+    final textId = entryButtonComponent.models['model']?.attributes['textId'];
+    log("Loaded textId $textId for entryButton for ${app.appId}");
+    final String name = app.texts['en-US']?[textId] ?? "";
+    log("Loaded name $name for entryButton for ${app.appId} from ${app.texts['en-US']}");
+    final imageId = entryButtonComponent.models['imageModel']?.attributes['imageId'];
+    log("Loaded imageId $imageId for entryButton for ${app.appId}");
+    final Uint8List? iconData = app.images[imageId];
+
+    final entryButton = RHMIEntryButton(name, iconData, category);
+    return RHMIButtonClickable(
+        callbacks: server,
+        app: app,
+        component: entryButtonComponent,
+        child: RHMIEntryButtonWidget(entryButton: entryButton)
     );
   }
 }
@@ -201,9 +253,11 @@ class TransparentIcon extends StatelessWidget {
 class RHMIStateWidget extends StatelessWidget {
   const RHMIStateWidget({
     super.key,
+    required this.callbacks,
     required this.app,
     required this.state,
   });
+  final ServerApi callbacks;
   final RHMIApp app;
   final RHMIState state;
 
@@ -213,7 +267,11 @@ class RHMIStateWidget extends StatelessWidget {
     final state = this.state;
     if (state is RHMIToolbarState) {
       List<Widget> toolbar = [];
-      toolbar = state.toolbarComponents.map((e) => RHMIButtonWidget(app: app, component: e)).toList();
+      toolbar = state.toolbarComponents.map((e) =>  RHMIButtonClickable(
+          callbacks: callbacks,
+          app: app,
+          component: e,
+          child: RHMIButtonWidget(app: app, component: e))).toList();
       drawer = Drawer(
           child: ListView(
             children: [
@@ -243,7 +301,11 @@ class RHMIStateWidget extends StatelessWidget {
         children: [
           ... state.components.map((e) =>
           switch (e.type) {
-            "button" => RHMIButtonWidget(app: app, component: e),
+            "button" => RHMIButtonClickable(
+                callbacks: callbacks,
+                app: app,
+                component: e,
+                child: RHMIButtonWidget(app: app, component: e)),
             "label" => RHMITextWidget(app: app, component: e),
             "list" => RHMIListWidget(listComponent: e),
             _ => const SizedBox(),
@@ -397,6 +459,7 @@ class RHMIListWidget extends StatelessWidget {
         if (value is List) {
           return Table(
             // TODO ColumnWidths based on RHMI Property
+            defaultColumnWidth: const IntrinsicColumnWidth(),
             children: [
               ... value.map((row) => TableRow(
                   children: [
@@ -414,4 +477,29 @@ class RHMIListWidget extends StatelessWidget {
       }
     );
   }
+}
+
+class ImageLabeled extends StatelessWidget {
+  const ImageLabeled({super.key, required this.image, required this.text});
+
+  final Widget image;
+  final Widget text;
+
+  @override
+  Widget build(BuildContext context) {
+    final double scale = MediaQuery.textScaleFactorOf(context);
+    final double gap = scale <= 1 ? 8 : lerpDouble(8, 4, math.min(scale - 1, 1))!;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(gap, gap, gap, gap),
+      child: Row(
+        children: [
+          image,
+          SizedBox(width: gap, height: gap),
+          text
+        ]
+      )
+    );
+  }
+
 }

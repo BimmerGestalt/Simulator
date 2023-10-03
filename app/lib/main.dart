@@ -29,7 +29,7 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
 
   final amApps = <String, AMAppInfo>{};
   final rhmiApps = <String, RHMIApp>{};
-  final entryButtonsByCategory = <String, List<RHMIEntryButtonClickable>>{};
+  final entryButtonsByCategory = <String, List<StatelessWidget>>{};
 
   @override
   void initState() {
@@ -87,13 +87,19 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
   }
 
   void updateEntryButtons() {
-    final entryButtonsByCategory = amApps.values.map((e) => RHMIEntryButtonClickable.wrapAMAppInfo(_serverPlugin, e)).groupListsBy((e) => e.category);
+    final Map<String, List<StatelessWidget>> entryButtonsByCategory = {};
+    for (final amApp in amApps.values) {
+      if (!entryButtonsByCategory.containsKey(amApp.category)) {
+        entryButtonsByCategory[amApp.category] = [];
+      }
+      entryButtonsByCategory[amApp.category]?.add(RHMIEntryButtonWidget.wrapAMAppInfo(_serverPlugin, amApp));
+    }
     for (final app in rhmiApps.values) {
       for (final entry in app.description.entryButtons.entries) {
         if (!entryButtonsByCategory.containsKey(entry.key)) {
           entryButtonsByCategory[entry.key] = [];
         }
-        entryButtonsByCategory[entry.key]?.add(RHMIEntryButtonClickable.wrapRhmiEntryButton(_serverPlugin, app, entry.value, entry.key));
+        entryButtonsByCategory[entry.key]?.add(RHMIEntryButtonWidget.wrapRhmiEntryButton(_serverPlugin, app, entry.value, entry.key));
       }
     }
     this.entryButtonsByCategory.clear();
@@ -148,7 +154,7 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
       final targetState = rhmiApps[appId]?.description.states[target];
       if (targetState != null) {
         navKey.currentState?.push(MaterialPageRoute(builder: (BuildContext context) {
-          return RHMIStateWidget(app: app, state: targetState);
+          return RHMIStateWidget(callbacks: _serverPlugin, app: app, state: targetState);
         }));
       }
       // TODO: components don't exist yet and won't have focus for a while
