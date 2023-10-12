@@ -99,7 +99,7 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
         if (!entryButtonsByCategory.containsKey(entry.key)) {
           entryButtonsByCategory[entry.key] = [];
         }
-        entryButtonsByCategory[entry.key]?.add(RHMIEntryButtonWidget.wrapRhmiEntryButton(_serverPlugin, app, entry.value, entry.key));
+        entryButtonsByCategory[entry.key]?.add(RHMIEntryButtonWidget.wrapRhmiEntryButton(app, entry.value, RHMICallbacks(navKey.currentState!, _serverPlugin, app), entry.key));
       }
     }
     this.entryButtonsByCategory.clear();
@@ -153,9 +153,7 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
       final target = args[0];
       final targetState = rhmiApps[appId]?.description.states[target];
       if (targetState != null) {
-        navKey.currentState?.push(MaterialPageRoute(builder: (BuildContext context) {
-          return RHMIStateWidget(callbacks: _serverPlugin, app: app, state: targetState);
-        }));
+        RHMICallbacks(navKey.currentState!, _serverPlugin, app).openState(targetState.id);
       }
       // TODO: components don't exist yet and won't have focus for a while
     }

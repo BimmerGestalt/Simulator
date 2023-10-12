@@ -14,6 +14,76 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 import 'rhmi.dart';
 
+class RHMICallbacks {
+  RHMICallbacks(this.navigator, this.client, this.app);
+
+  final NavigatorState navigator;
+  final ServerApi client;
+  final RHMIApp app;
+
+  bool hasAction(RHMIComponent component) {
+    return component.actions['action'] != null;
+  }
+
+  openState(int stateId) {
+    final targetState = app.description.states[stateId];
+    if (targetState != null) {
+      navigator.push(MaterialPageRoute(builder: (BuildContext context) {
+        return VisibilityDetector(key: Key("visibility-$stateId"),
+            onVisibilityChanged: (visibilityInfo) {
+              final visible = visibilityInfo.visibleFraction != 0;
+              client.rhmiEvent(app.appId, stateId, 1, {4: visible});  // focus
+              client.rhmiEvent(app.appId, stateId, 11, {23: visible});  // visibility
+            },
+            child: RHMIStateWidget(callbacks: this, app: app, state: targetState)
+        );
+      }));
+    }
+  }
+
+  Future<bool> dispatchAction(int actionId) async {
+    final ack = client.rhmiAction(app.appId, actionId, {});
+    ack.timeout(const Duration(seconds: 3), onTimeout: () {
+      return false;
+    });
+    return await ack;
+  }
+
+  void action(RHMIComponent component) async {
+    final action = component.actions['action'];
+
+    // TODO factor out for list actions
+    if (action is RHMIAction) {
+      dispatchAction(action.id);
+    }
+    if (action is RHMIHmiAction) {
+      final targetModelValue = action.targetModel?.value;
+      log("Loaded direct hmiModel ${action.targetModelId}:$targetModelValue");
+      final targetStateId = (targetModelValue is int) ? targetModelValue : action.target ?? -1;
+      openState(targetStateId);
+    }
+    if (action is RHMICombinedAction) {
+      final raAction = action.raAction;
+      log("Triggering raAction $raAction");
+      if (raAction != null) {
+        if (action.attributes["sync"] == "true") {
+          final ack = dispatchAction(action.id);
+          log("Got acknowledgement ${await ack}");
+          if (await ack == false) {
+            return;
+          }
+        } else {
+          client.rhmiAction(app.appId, raAction.id, {});
+        }
+      }
+      final targetModelValue = action.hmiAction?.targetModel?.value;
+      log("Loaded hmiModel ${action.hmiAction?.targetModelId}:$targetModelValue");
+      final targetStateId = (targetModelValue is int) ? targetModelValue : action.hmiAction?.target ?? -1;
+      openState(targetStateId);
+    }
+  }
+}
+
 class AMButtonClickable extends StatelessWidget {
   const AMButtonClickable({super.key, required this.callbacks, required this.appId, required this.child});
 
@@ -31,84 +101,6 @@ class AMButtonClickable extends StatelessWidget {
         onTap: () => onTap(),
         child: child
     );
-  }
-}
-class RHMIButtonClickable extends StatelessWidget {
-  const RHMIButtonClickable({super.key, required this.callbacks, required this.app, required this.component, required this.child});
-
-  final ServerApi callbacks;
-  final RHMIApp app;
-  final RHMIComponent component;
-  final StatelessWidget child;
-
-  Future<bool> dispatchAction(int actionId) async {
-    final ack = callbacks.rhmiAction(app.appId, actionId, {});
-    ack.timeout(const Duration(seconds: 3), onTimeout: () {
-      return false;
-    });
-    return await ack;
-  }
-
-  openState(NavigatorState navigator, int stateId) {
-    final targetState = app.description.states[stateId];
-    if (targetState != null) {
-      navigator.push(MaterialPageRoute(builder: (BuildContext context) {
-        return VisibilityDetector(key: Key("visibility-$stateId"),
-          onVisibilityChanged: (visibilityInfo) {
-            final visible = visibilityInfo.visibleFraction != 0;
-            callbacks.rhmiEvent(app.appId, stateId, 1, {4: visible});  // focus
-            callbacks.rhmiEvent(app.appId, stateId, 11, {23: visible});  // visibility
-          },
-          child: RHMIStateWidget(callbacks: callbacks, app: app, state: targetState)
-        );
-      }));
-    }
-  }
-
-  void onTap(NavigatorState navigator) async {
-    final action = component.actions['action'];
-
-    if (action is RHMIAction) {
-      dispatchAction(action.id);
-    }
-    if (action is RHMIHmiAction) {
-      final targetModelValue = action.targetModel?.value;
-      log("Loaded direct hmiModel ${action.targetModelId}:$targetModelValue");
-      final targetStateId = (targetModelValue is int) ? targetModelValue : action.target ?? -1;
-      openState(navigator, targetStateId);
-    }
-    if (action is RHMICombinedAction) {
-      final raAction = action.raAction;
-      log("Triggering raAction $raAction");
-      if (raAction != null) {
-        if (action.attributes["sync"] == "true") {
-          final ack = dispatchAction(action.id);
-          log("Got acknowledgement ${await ack}");
-          if (await ack == false) {
-            return;
-          }
-        } else {
-          callbacks.rhmiAction(app.appId, raAction.id, {});
-        }
-      }
-      final targetModelValue = action.hmiAction?.targetModel?.value;
-      log("Loaded hmiModel ${action.hmiAction?.targetModelId}:$targetModelValue");
-      final targetStateId = (targetModelValue is int) ? targetModelValue : action.hmiAction?.target ?? -1;
-      openState(navigator, targetStateId);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final action = component.actions['action'];
-    if (action != null) {
-      return InkWell (  // TODO support other themes
-        onTap: () => onTap(Navigator.of(context)),
-        child: child
-      );
-    } else {
-      return child;
-    }
   }
 }
 
@@ -172,22 +164,8 @@ class RHMIEntryButtonWidget extends StatelessWidget {
         child: RHMIEntryButtonWidget(entryButton: entryButton)
     );
   }
-  static StatelessWidget wrapRhmiEntryButton(ServerApi server, RHMIApp app, RHMIComponent entryButtonComponent, String category) {
-    final textId = entryButtonComponent.models['model']?.attributes['textId'];
-    log("Loaded textId $textId for entryButton for ${app.appId}");
-    final String name = app.texts['en-US']?[textId] ?? "";
-    log("Loaded name $name for entryButton for ${app.appId} from ${app.texts['en-US']}");
-    final imageId = entryButtonComponent.models['imageModel']?.attributes['imageId'];
-    log("Loaded imageId $imageId for entryButton for ${app.appId}");
-    final Uint8List? iconData = app.images[imageId];
-
-    final entryButton = RHMIEntryButton(name, iconData, category);
-    return RHMIButtonClickable(
-        callbacks: server,
-        app: app,
-        component: entryButtonComponent,
-        child: RHMIEntryButtonWidget(entryButton: entryButton)
-    );
+  static StatelessWidget wrapRhmiEntryButton(RHMIApp app, RHMIComponent component, RHMICallbacks callbacks, String category) {
+    return RHMIButtonWidget(app: app, component: component, callbacks: callbacks);
   }
 }
 
@@ -257,7 +235,7 @@ class RHMIStateWidget extends StatelessWidget {
     required this.app,
     required this.state,
   });
-  final ServerApi callbacks;
+  final RHMICallbacks callbacks;
   final RHMIApp app;
   final RHMIState state;
 
@@ -267,18 +245,17 @@ class RHMIStateWidget extends StatelessWidget {
     final state = this.state;
     if (state is RHMIToolbarState) {
       List<Widget> toolbar = [];
-      toolbar = state.toolbarComponents.map((e) =>  RHMIButtonClickable(
-          callbacks: callbacks,
-          app: app,
-          component: e,
-          child: RHMIButtonWidget(app: app, component: e))).toList();
+      toolbar = state.toolbarComponents.map((e) => RHMIButtonWidget(app: app, component: e, callbacks: callbacks)).toList();
       drawer = Drawer(
           child: ListView(
             children: [
               Row(
                 children: [
                   BackButton(
-                    onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+                    onPressed: () {
+                      Navigator.pop(context); // close the sidebar
+                      Navigator.pop(context); // back out of the window
+                    },
                   )
                 ],
               ),
@@ -301,11 +278,7 @@ class RHMIStateWidget extends StatelessWidget {
         children: [
           ... state.components.map((e) =>
           switch (e.type) {
-            "button" => RHMIButtonClickable(
-                callbacks: callbacks,
-                app: app,
-                component: e,
-                child: RHMIButtonWidget(app: app, component: e)),
+            "button" => RHMIButtonWidget(app: app, component: e, callbacks: callbacks),
             "label" => RHMITextWidget(app: app, component: e),
             "list" => RHMIListWidget(listComponent: e),
             _ => const SizedBox(),
@@ -321,24 +294,25 @@ class RHMIButtonWidget extends StatelessWidget {
     super.key,
     required this.app,
     required this.component,
+    required this.callbacks,
   });
 
   final RHMIApp app;
   final RHMIComponent component;
+  final RHMICallbacks callbacks;
 
   @override
   Widget build(BuildContext context) {
     final model = component.models["model"] ?? component.models["tooltipModel"];
     final imageModel = component.models["imageModel"];
-    List<Widget> widgets = [];
-    if (imageModel != null) {
-      widgets.add(RHMIImageModelWidget(app: app, model: imageModel));
-    }
-    if (model != null) {
-      widgets.add(RHMITextModelWidget(app: app, model: model));
-    }
     return Row(
-      children: widgets,
+      children: [
+        TextButton.icon(
+            onPressed: () => callbacks.action(component),
+            icon: RHMIImageModelWidget(app: app, model: imageModel),
+            label: RHMITextModelWidget(app: app, model: model)
+        )
+      ],
     );
   }
 }
