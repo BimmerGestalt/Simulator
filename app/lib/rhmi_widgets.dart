@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:headunit/pigeon.dart';
@@ -41,20 +42,22 @@ class RHMICallbacks {
     }
   }
 
-  Future<bool> dispatchAction(int actionId) async {
-    final ack = client.rhmiAction(app.appId, actionId, {});
+  Future<bool> dispatchAction(int actionId, {Map<int, Object?>? args}) async {
+    final ack = client.rhmiAction(app.appId, actionId, args ?? {});
     ack.timeout(const Duration(seconds: 3), onTimeout: () {
       return false;
     });
     return await ack;
   }
 
-  void action(RHMIComponent component) async {
+  void listAction(RHMIComponent component, int index) async {
+    action(component, args: {1: index});
+  }
+  void action(RHMIComponent component, {Map<int, Object?>? args}) async {
     final action = component.actions['action'];
 
-    // TODO factor out for list actions
     if (action is RHMIAction) {
-      dispatchAction(action.id);
+      dispatchAction(action.id, args: args);
     }
     if (action is RHMIHmiAction) {
       final targetModelValue = action.targetModel?.value;
@@ -67,7 +70,7 @@ class RHMICallbacks {
       log("Triggering raAction $raAction");
       if (raAction != null) {
         if (action.attributes["sync"] == "true") {
-          final ack = dispatchAction(action.id);
+          final ack = dispatchAction(action.id, args: args);
           log("Got acknowledgement ${await ack}");
           if (await ack == false) {
             return;
@@ -280,7 +283,7 @@ class RHMIStateWidget extends StatelessWidget {
           switch (e.type) {
             "button" => RHMIButtonWidget(app: app, component: e, callbacks: callbacks),
             "label" => RHMITextWidget(app: app, component: e),
-            "list" => RHMIListWidget(listComponent: e),
+            "list" => RHMIListWidget(listComponent: e, callbacks: callbacks),
             _ => const SizedBox(),
           })
         ],
@@ -406,9 +409,11 @@ class RHMIListWidget extends StatelessWidget {
   const RHMIListWidget({
     super.key,
     required this.listComponent,
+    required this.callbacks,
     this.modelName = "model",
   });
 
+  final RHMICallbacks callbacks;
   final RHMIComponent listComponent;
   final String modelName;
 
@@ -435,11 +440,14 @@ class RHMIListWidget extends StatelessWidget {
             // TODO ColumnWidths based on RHMI Property
             defaultColumnWidth: const IntrinsicColumnWidth(),
             children: [
-              ... value.map((row) => TableRow(
+              ... value.mapIndexed((index, row) => TableRow(
                   children: [
-                    ...(row as List).map((e) => renderCell(
-                      e,
-                      darkMode: MediaQuery.of(context).platformBrightness == Brightness.dark
+                    ...(row as List).map((e) => TableRowInkWell(
+                      onTap: () => callbacks.listAction(listComponent, index),
+                      child: renderCell(
+                        e,
+                        darkMode: MediaQuery.of(context).platformBrightness == Brightness.dark
+                      ),
                     ))
                   ]
                 ))
