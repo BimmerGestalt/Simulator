@@ -161,6 +161,7 @@ class RHMIAction {
     final action = switch (type) {
       "combinedAction" => RHMICombinedAction(id, type, attributes),
       "hmiAction" => RHMIHmiAction(id, type, attributes),
+      "raAction" => RHMIRaAction(id, type, attributes),
       _ => RHMIAction(id, type, attributes),
     };
     if (action is RHMICombinedAction) {
@@ -184,13 +185,13 @@ class RHMIAction {
 class RHMICombinedAction extends RHMIAction {
   RHMICombinedAction(super.id, super.type, super.attributes);
 
-  RHMIAction? raAction;
+  RHMIRaAction? raAction;
   RHMIHmiAction? hmiAction;
 
   void loadChildren(XmlNode combinedActionNode) {
     combinedActionNode.getElement("actions")?.childElements.forEach((element) {
       final action = RHMIAction.loadXml(element);
-      if (action.type == "raAction") {
+      if (action is RHMIRaAction && action.type == "raAction") {
         raAction = action;
       }
       if (action is RHMIHmiAction && action.type == "hmiAction") {
@@ -202,6 +203,10 @@ class RHMICombinedAction extends RHMIAction {
   void linkModel(Map<int, RHMIModel> models) {
     hmiAction?.linkModel(models);
   }
+}
+
+class RHMIRaAction extends RHMIAction {
+  RHMIRaAction(super.id, super.type, super.attributes);
 }
 
 class RHMIHmiAction extends RHMIAction {

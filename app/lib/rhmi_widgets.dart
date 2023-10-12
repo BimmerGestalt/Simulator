@@ -56,7 +56,7 @@ class RHMICallbacks {
   void action(RHMIComponent component, {Map<int, Object?>? args}) async {
     final action = component.actions['action'];
 
-    if (action is RHMIAction) {
+    if (action is RHMIRaAction) {
       dispatchAction(action.id, args: args);
     }
     if (action is RHMIHmiAction) {
