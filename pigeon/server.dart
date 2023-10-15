@@ -27,6 +27,17 @@ class RHMIAppInfo {
   RHMIAppInfo(this.handle, this.appId, this.resources);
 }
 
+class RHMIImageId {
+  final int id;
+
+  RHMIImageId(this.id);
+}
+class RHMITextId {
+  final int id;
+
+  RHMITextId(this.id);
+}
+
 @HostApi()
 abstract class ServerApi {
   String getPlatformVersion();
@@ -45,4 +56,6 @@ abstract class HeadunitApi {
   void rhmiSetData(String appId, int modelId, Object? value);
   void rhmiSetProperty(String appId, int componentId, int propertyId, Object? value);
   void rhmiTriggerEvent(String appId, int eventId, Map<int, Object?> args);
+
+  void _dummy(RHMITextId a, RHMIImageId b);
 }

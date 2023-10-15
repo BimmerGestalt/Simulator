@@ -250,6 +250,8 @@ class RHMIStateWidget extends StatelessWidget {
       List<Widget> toolbar = [];
       toolbar = state.toolbarComponents.map((e) => RHMIButtonWidget(app: app, component: e, callbacks: callbacks)).toList();
       drawer = Drawer(
+        child: DefaultTextStyle(
+          style: const TextStyle(fontSize: 24),
           child: ListView(
             children: [
               Row(
@@ -265,6 +267,7 @@ class RHMIStateWidget extends StatelessWidget {
               ... toolbar
             ]
           )
+        )
       );
     }
     return Scaffold(
@@ -277,16 +280,19 @@ class RHMIStateWidget extends StatelessWidget {
         )
       ),
       drawer: drawer,
-      body: ListView(
-        children: [
-          ... state.components.map((e) =>
-          switch (e.type) {
-            "button" => RHMIButtonWidget(app: app, component: e, callbacks: callbacks),
-            "label" => RHMITextWidget(app: app, component: e),
-            "list" => RHMIListWidget(listComponent: e, callbacks: callbacks),
-            _ => const SizedBox(),
-          })
-        ],
+      body: DefaultTextStyle(
+        style: const TextStyle(fontSize: 24),
+        child: ListView(
+          children: [
+            ... state.components.map((e) =>
+            switch (e.type) {
+              "button" => RHMIButtonWidget(app: app, component: e, callbacks: callbacks),
+              "label" => RHMITextWidget(app: app, component: e),
+              "list" => RHMIListWidget(app: app, listComponent: e, callbacks: callbacks),
+              _ => const SizedBox(),
+            })
+          ],
+        )
       )
     );
   }
@@ -362,20 +368,48 @@ class RHMIImageModelWidget extends StatelessWidget {
     return ListenableBuilder(
         listenable: model,
         builder: (context, child) {
-          final value = model.type == "imageIdModel"
-              ? app.images[model.value] ?? app.images[model.attributes["imageId"]]
-              : model.value;
-          if (value is Uint8List) {
-            return TransparentIcon(
-                iconData: value, darkMode: darkMode, width: 48, height: 48
-            );
+          if (model.type == "imageIdModel") {
+            final imageId = model.attributes["imageId"];
+            if (imageId is int) {
+              return RHMIImageIdWidget(app: app, imageId: imageId);
+            }
+          } else {
+            final value = model.value;
+            if (value is Uint8List) {
+              return TransparentIcon(
+                  iconData: value, darkMode: darkMode, width: 48, height: 48
+              );
+            }
           }
+          // else
           return const SizedBox(width: 48, height: 48);
         }
     );
   }
 }
 
+class RHMIImageIdWidget extends StatelessWidget {
+  const RHMIImageIdWidget({
+    super.key,
+    required this.app,
+    required this.imageId,
+  });
+  final RHMIApp app;
+  final int imageId;
+
+  @override
+  Widget build(BuildContext context) {
+    final darkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
+    final iconData = app.images[imageId];
+    if (iconData is Uint8List) {
+      return TransparentIcon(
+          iconData: iconData, darkMode: darkMode, width: 48, height: 48
+      );
+    } else {
+      return const SizedBox(width: 48, height: 48);
+    }
+  }
+}
 class RHMITextModelWidget extends StatelessWidget {
   const RHMITextModelWidget({
     super.key,
@@ -396,7 +430,12 @@ class RHMITextModelWidget extends StatelessWidget {
         listenable: model,
         builder: (context, child) {
           if (model.type == "textIdModel") {
-            return Text(app.texts["en-US"]?[model.value] ?? "");
+            final value = model.value;
+            if (value is int) {
+              return RHMITextIdWidget(app: app, textId: value);
+            } else {
+              return const Text("");
+            }
           } else {
             return Text(model.value?.toString() ?? "");
           }
@@ -405,23 +444,47 @@ class RHMITextModelWidget extends StatelessWidget {
   }
 }
 
+class RHMITextIdWidget extends StatelessWidget {
+  const RHMITextIdWidget({
+    super.key,
+    required this.app,
+    required this.textId,
+  });
+  final RHMIApp app;
+  final int textId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(app.texts["en-US"]?[textId] ?? "");
+  }
+}
+
 class RHMIListWidget extends StatelessWidget {
   const RHMIListWidget({
     super.key,
+    required this.app,
     required this.listComponent,
     required this.callbacks,
     this.modelName = "model",
   });
 
+  final RHMIApp app;
   final RHMICallbacks callbacks;
   final RHMIComponent listComponent;
   final String modelName;
 
   Widget renderCell(Object value, {required bool darkMode}) {
-    if (value is Uint8List) {
+    if (value is RHMITextId) {
+      return RHMITextIdWidget(app: app, textId: value.id);
+    } else if (value is RHMIImageId) {
+      return RHMIImageIdWidget(app: app, imageId: value.id);
+    } else if (value is Uint8List) {
       return TransparentIcon(iconData: value, darkMode: darkMode, width: 96, height: 96);
     } else {
-      return Text(value.toString());
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(value.toString())
+      ) ;
     }
   }
 
@@ -434,23 +497,32 @@ class RHMIListWidget extends StatelessWidget {
     return ListenableBuilder(
       listenable: model,
       builder: (context, child) {
+        final darkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
         final value = model.value;
         if (value is List) {
           return Table(
             // TODO ColumnWidths based on RHMI Property
             defaultColumnWidth: const IntrinsicColumnWidth(),
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
               ... value.mapIndexed((index, row) => TableRow(
                   children: [
-                    ...(row as List).map((e) => TableRowInkWell(
-                      onTap: () => callbacks.listAction(listComponent, index),
-                      child: renderCell(
-                        e,
-                        darkMode: MediaQuery.of(context).platformBrightness == Brightness.dark
+                    ...(row as List).map((e) => ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: 48,
+                        maxHeight: 96,
                       ),
-                    ))
-                  ]
-                ))
+                      child: TableRowInkWell(
+                        onTap: () => callbacks.listAction(listComponent, index),
+                        child: renderCell(
+                          e,
+                          darkMode: darkMode
+                        )
+                      )
+                    )
+                  )
+                ]
+              ))
             ]
           );
         } else {

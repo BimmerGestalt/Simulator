@@ -80,6 +80,48 @@ class RHMIAppInfo {
   }
 }
 
+class RHMIImageId {
+  RHMIImageId({
+    required this.id,
+  });
+
+  int id;
+
+  Object encode() {
+    return <Object?>[
+      id,
+    ];
+  }
+
+  static RHMIImageId decode(Object result) {
+    result as List<Object?>;
+    return RHMIImageId(
+      id: result[0]! as int,
+    );
+  }
+}
+
+class RHMITextId {
+  RHMITextId({
+    required this.id,
+  });
+
+  int id;
+
+  Object encode() {
+    return <Object?>[
+      id,
+    ];
+  }
+
+  static RHMITextId decode(Object result) {
+    result as List<Object?>;
+    return RHMITextId(
+      id: result[0]! as int,
+    );
+  }
+}
+
 class _ServerApiCodec extends StandardMessageCodec {
   const _ServerApiCodec();
   @override
@@ -89,6 +131,12 @@ class _ServerApiCodec extends StandardMessageCodec {
       writeValue(buffer, value.encode());
     } else if (value is RHMIAppInfo) {
       buffer.putUint8(129);
+      writeValue(buffer, value.encode());
+    } else if (value is RHMIImageId) {
+      buffer.putUint8(130);
+      writeValue(buffer, value.encode());
+    } else if (value is RHMITextId) {
+      buffer.putUint8(131);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -102,6 +150,10 @@ class _ServerApiCodec extends StandardMessageCodec {
         return AMAppInfo.decode(readValue(buffer)!);
       case 129: 
         return RHMIAppInfo.decode(readValue(buffer)!);
+      case 130: 
+        return RHMIImageId.decode(readValue(buffer)!);
+      case 131: 
+        return RHMITextId.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -249,6 +301,12 @@ class _HeadunitApiCodec extends StandardMessageCodec {
     } else if (value is RHMIAppInfo) {
       buffer.putUint8(129);
       writeValue(buffer, value.encode());
+    } else if (value is RHMIImageId) {
+      buffer.putUint8(130);
+      writeValue(buffer, value.encode());
+    } else if (value is RHMITextId) {
+      buffer.putUint8(131);
+      writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
     }
@@ -261,6 +319,10 @@ class _HeadunitApiCodec extends StandardMessageCodec {
         return AMAppInfo.decode(readValue(buffer)!);
       case 129: 
         return RHMIAppInfo.decode(readValue(buffer)!);
+      case 130: 
+        return RHMIImageId.decode(readValue(buffer)!);
+      case 131: 
+        return RHMITextId.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -283,6 +345,8 @@ abstract class HeadunitApi {
   void rhmiSetProperty(String appId, int componentId, int propertyId, Object? value);
 
   void rhmiTriggerEvent(String appId, int eventId, Map<int?, Object?> args);
+
+  void _dummy(RHMITextId a, RHMIImageId b);
 
   static void setup(HeadunitApi? api, {BinaryMessenger? binaryMessenger}) {
     {
@@ -431,6 +495,28 @@ abstract class HeadunitApi {
           assert(arg_args != null,
               'Argument for dev.flutter.pigeon.headunit.HeadunitApi.rhmiTriggerEvent was null, expected non-null Map<int?, Object?>.');
           api.rhmiTriggerEvent(arg_appId!, arg_eventId!, arg_args!);
+          return;
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.headunit.HeadunitApi._dummy', codec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        channel.setMessageHandler(null);
+      } else {
+        channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.headunit.HeadunitApi._dummy was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final RHMITextId? arg_a = (args[0] as RHMITextId?);
+          assert(arg_a != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi._dummy was null, expected non-null RHMITextId.');
+          final RHMIImageId? arg_b = (args[1] as RHMIImageId?);
+          assert(arg_b != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi._dummy was null, expected non-null RHMIImageId.');
+          api._dummy(arg_a!, arg_b!);
           return;
         });
       }

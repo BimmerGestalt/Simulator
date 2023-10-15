@@ -74,13 +74,16 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
         appBar: AppBar(
           title: const Text('Plugin example app'),
         ),
-        body: ListView(
-          children: [
-            Center(
-              child: Text('Running on: $_platformVersion\n'),
-            ),
-            ...categories.map((e) => RHMISectionWidget(name: e, buttons: entryButtonsByCategory[e]!))
-          ],
+        body: DefaultTextStyle(
+          style: const TextStyle(fontSize: 20),
+          child: ListView(
+            children: [
+              Center(
+                child: Text('Running on: $_platformVersion\n'),
+              ),
+              ...categories.map((e) => RHMISectionWidget(name: e, buttons: entryButtonsByCategory[e]!))
+            ],
+          )
         )
       ),
     );

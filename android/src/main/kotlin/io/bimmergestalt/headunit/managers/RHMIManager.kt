@@ -8,6 +8,8 @@ import de.bmw.idrive.BMWRemoting.RHMIResourceType
 import de.bmw.idrive.BMWRemotingClient
 import io.bimmergestalt.headunit.HeadunitCallbacks
 import io.bimmergestalt.headunit.RHMIAppInfo
+import io.bimmergestalt.headunit.RHMIImageId
+import io.bimmergestalt.headunit.RHMITextId
 import io.flutter.Log
 
 class RHMIManager(val callbacks: HeadunitCallbacks) {
@@ -72,7 +74,14 @@ class RHMIManager(val callbacks: HeadunitCallbacks) {
 				}
 			}
 			is RHMIResourceData -> value.data    // assume the destination model is RA
-			is RHMIResourceIdentifier -> value.id    // assume the destination model is ID
+			is RHMIResourceIdentifier -> if (value.type == RHMIResourceType.IMAGEID) {
+				RHMIImageId(value.id.toLong())
+			} else if (value.type == RHMIResourceType.TEXTID) {
+				RHMITextId(value.id.toLong())
+			} else {
+				value.id
+				// assume the destination model is ID
+			}
 			is ByteArray -> value
 			is Number -> value
 			is String -> value
