@@ -144,7 +144,9 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
 
   @override
   void rhmiSetProperty(String appId, int componentId, int propertyId, Object? value) {
-    // TODO: implement rhmiSetProperty
+    final component = rhmiApps[appId]?.description.components[componentId];
+    if (component == null) return;
+    component.properties[propertyId].value = value;
   }
 
   @override

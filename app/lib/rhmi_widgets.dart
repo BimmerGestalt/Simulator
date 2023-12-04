@@ -11,6 +11,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:headunit/pigeon.dart';
 import 'package:image/image.dart' as image_manips;
+import 'package:kotlin_flavor/scope_functions.dart';
+import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import 'rhmi.dart';
@@ -481,10 +483,7 @@ class RHMIListWidget extends StatelessWidget {
     } else if (value is Uint8List) {
       return TransparentIcon(iconData: value, darkMode: darkMode, width: 96, height: 96);
     } else {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(value.toString())
-      ) ;
+      return Text(value.toString());
     }
   }
 
@@ -494,15 +493,19 @@ class RHMIListWidget extends StatelessWidget {
     if (model == null) {
       return const Text("");
     }
-    return ListenableBuilder(
-      listenable: model,
-      builder: (context, child) {
+    return MultiValueListenableBuilder(
+      valueListenables:
+        [model, listComponent.properties[RHMIProperty.list_columnwidth]],
+      builder: (context, _, child) {
         final darkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
         final value = model.value;
         if (value is List) {
+          final columnSizes = listComponent.properties[RHMIProperty.list_columnwidth].value.toString()
+              .split(",").map((e) => int.tryParse(e)?.let((self) => FixedColumnWidth(self.toDouble())) ?? const FlexColumnWidth())
+              .toList().asMap();
           return Table(
-            // TODO ColumnWidths based on RHMI Property
-            defaultColumnWidth: const IntrinsicColumnWidth(),
+            columnWidths: columnSizes,
+            defaultColumnWidth: const FlexColumnWidth(),
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
               ... value.mapIndexed((index, row) => TableRow(
@@ -514,9 +517,12 @@ class RHMIListWidget extends StatelessWidget {
                       ),
                       child: TableRowInkWell(
                         onTap: () => callbacks.listAction(listComponent, index),
-                        child: renderCell(
-                          e,
-                          darkMode: darkMode
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                          child: renderCell(
+                            e,
+                            darkMode: darkMode
+                          )
                         )
                       )
                     )

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
+import 'package:default_map/default_map.dart';
 import 'package:flutter/material.dart';
 import 'package:xml/xml.dart';
 
@@ -121,6 +122,10 @@ class RHMIAppDescription {
         final parsed = RHMIState.loadXml(app, node);
         if (parsed.id > 0) {
           app.states[parsed.id] = parsed;
+          for (final c in parsed.components) { app.components[c.id] = c; }
+          if (parsed is RHMIToolbarState) {
+            for (final c in parsed.toolbarComponents) { app.components[c.id] = c; }
+          }
         }
       });
 
@@ -274,20 +279,23 @@ class RHMIModel extends ValueNotifier<Object?> {
   }
 }
 
-class RHMIProperty {
+class RHMIProperty extends ValueNotifier<Object?> {
   static const enabled = 1;
   static const selectable = 2;
   static const visible = 3;
+  static const list_columnwidth = 6;
 
-  static Map<int, String> loadProperties(XmlElement? propertiesNode) {
-    final Map<int, String> properties = {};
+  RHMIProperty(super.value);
+
+  static Map<int, RHMIProperty> loadProperties(XmlElement? propertiesNode) {
+    final Map<int, RHMIProperty> properties = {};
     propertiesNode?.childElements.forEach((element) {
       final idNode = element.attributes.firstWhere((p0) => p0.name.local == 'id',
           orElse: (() => XmlAttribute(XmlName.fromString(""), "-1")));
       final id = int.parse(idNode.value);
       final value = element.attributes.firstWhere((p0) => p0.name.local == 'value',
           orElse: (() => XmlAttribute(XmlName.fromString(""), ""))).value;
-      properties[id] = value;
+      properties[id] = RHMIProperty(value);
 
       final condition = element.getElement('condition');
       final assignments = condition?.getElement('assignments');
@@ -297,7 +305,7 @@ class RHMIProperty {
 
         final assignmentValue = element.attributes.firstWhere((p0) => p0.name.local == 'value',
             orElse: (() => XmlAttribute(XmlName.fromString(""), ""))).value;
-        properties[id] = assignmentValue;
+        properties[id] = RHMIProperty(assignmentValue);
       }
     });
     return properties;
@@ -311,7 +319,7 @@ class RHMIComponent {
   String type;
   Map<String, RHMIAction> actions = {};
   Map<String, RHMIModel> models = {};
-  Map<int, String> properties = {};
+  DefaultMap<int, RHMIProperty> properties = DefaultMap(() => RHMIProperty(null));
 
   static RHMIComponent loadXml(RHMIAppDescription app, XmlElement node) {
     final idNode = node.attributes.firstWhere((p0) => p0.name.local == 'id',
@@ -337,7 +345,7 @@ class RHMIState {
   String type;
   List<RHMIComponent> components = [];
   Map<String, RHMIModel> models = {}; // usually a title model, but also all of audioHmiState models
-  Map<int, String> properties = {};
+  DefaultMap<int, RHMIProperty> properties = DefaultMap(() => RHMIProperty(null));
 
   static RHMIState loadXml(RHMIAppDescription app, XmlElement node) {
     final idNode = node.attributes.firstWhere((p0) => p0.name.local == 'id',
