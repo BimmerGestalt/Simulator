@@ -43,7 +43,7 @@ class RHMIManager(val callbacks: HeadunitCallbacks) {
 	}
 
 	fun unregisterApp(appId: String) {
-		val existing = knownApps[appId]
+		val existing = knownApps.remove(appId)
 		if (existing != null) {
 			callbacks.rhmiUnregisterApp(appId)
 		}
@@ -82,6 +82,7 @@ class RHMIManager(val callbacks: HeadunitCallbacks) {
 				value.id
 				// assume the destination model is ID
 			}
+			is Boolean -> value
 			is ByteArray -> value
 			is Number -> value
 			is String -> value

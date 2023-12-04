@@ -1,10 +1,8 @@
 package io.bimmergestalt.headunit
 
-import androidx.collection.SparseArrayCompat
 import de.bmw.idrive.BMWRemoting
 import de.bmw.idrive.BMWRemotingClient
 import de.bmw.idrive.BaseBMWRemotingServer
-import io.bimmergestalt.headunit.Utils.values
 import io.bimmergestalt.headunit.managers.AMManager
 import io.bimmergestalt.headunit.managers.RHMIManager
 import io.flutter.Log
@@ -98,10 +96,10 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient,
 
 	override fun am_dispose(handle: Int?) {
 		Log.i(TAG, "am_dispose")
+		val amHandle = amHandle ?: return
 		if (amHandle != handle) {
 			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect AM handle")
 		}
-		val amHandle = amHandle ?: return
 		amManager.unregisterAppsByHandle(amHandle)
 		amManager.removeEventHandler(amHandle)
 		this.amHandle = null
@@ -276,10 +274,10 @@ class BMWRemotingServerImpl(val client: BMWRemotingClient,
 
 	override fun rhmi_dispose(handle: Int?) {
 		Log.i(TAG, "rhmi_dispose")
+		val rhmiHandle = rhmiHandle ?: return
 		if (rhmiHandle != handle) {
 			throw BMWRemoting.IllegalArgumentException(-1, "Incorrect RHMI handle")
 		}
-		val rhmiHandle = rhmiHandle ?: return
 		rhmiManager.unregisterAppsByHandle(rhmiHandle)
 		rhmiManager.removeActionHandler(rhmiHandle)
 		rhmiManager.removeEventHandler(rhmiHandle)

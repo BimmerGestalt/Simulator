@@ -36,7 +36,7 @@ class AMManager(val callbacks: HeadunitCallbacks) {
 	}
 
 	fun unregisterApp(appId: String) {
-		val existing = knownApps[appId]
+		val existing = knownApps.remove(appId)
 		if (existing != null) {
 			callbacks.amUnregisterApp(appId)
 		}
