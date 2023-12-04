@@ -272,6 +272,9 @@ class RHMIStateWidget extends StatelessWidget {
         )
       );
     }
+
+    final relativeComponents = state.components.where((element) => !(element.properties.containsKey(RHMIProperty.position_x) || element.properties.containsKey(RHMIProperty.position_y)));
+    final absoluteComponents = state.components.where((element) => element.properties.containsKey(RHMIProperty.position_x) || element.properties.containsKey(RHMIProperty.position_y));
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -283,17 +286,25 @@ class RHMIStateWidget extends StatelessWidget {
       ),
       drawer: drawer,
       body: DefaultTextStyle(
-        style: const TextStyle(fontSize: 24),
-        child: ListView(
+        style: const TextStyle(fontSize: 20),
+        child: Stack(
           children: [
-            ... state.components.map((e) =>
-            switch (e.type) {
-              "button" => RHMIButtonWidget(app: app, component: e, callbacks: callbacks),
-              "label" => RHMITextWidget(app: app, component: e),
-              "list" => RHMIListWidget(app: app, component: e, callbacks: callbacks),
-              _ => const SizedBox(),
-            })
-          ],
+            ListView(
+              children: [
+                ... relativeComponents.map((e) => RHMIComponentWidget.fromComponent(app, e, callbacks))
+              ],
+            ),
+            ...absoluteComponents.map((e) => MultiValueListenableBuilder(
+                valueListenables: [e.properties[RHMIProperty.position_x], e.properties[RHMIProperty.position_y]],
+                builder: (context, _, child) {
+                  return Positioned(
+                      left: (double.tryParse(e.properties[RHMIProperty.position_x].value.toString()) ?? 0)*.6,
+                      top: (double.tryParse(e.properties[RHMIProperty.position_y].value.toString()) ?? 0)*.6,
+                      child: RHMIComponentWidget.fromComponent(app, e, callbacks)
+                  );
+                }
+            ))
+          ]
         )
       )
     );
@@ -308,6 +319,15 @@ abstract class RHMIComponentWidget extends StatelessWidget {
   });
 
   final RHMIComponent component;
+
+  static Widget fromComponent(RHMIApp app, RHMIComponent component, RHMICallbacks callbacks) {
+    return switch (component.type) {
+      "button" => RHMIButtonWidget(app: app, component: component, callbacks: callbacks),
+      "label" => RHMITextWidget(app: app, component: component),
+      "list" => RHMIListWidget(app: app, component: component, callbacks: callbacks),
+      _ => const SizedBox(),
+    };
+  }
 
   Widget appliedVisibility(WidgetBuilder builder) {
     return ListenableBuilder(

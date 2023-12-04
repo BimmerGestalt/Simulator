@@ -284,6 +284,8 @@ class RHMIProperty extends ValueNotifier<Object?> {
   static const selectable = 2;
   static const visible = 3;
   static const list_columnwidth = 6;
+  static const position_x = 20;
+  static const position_y = 21;
 
   RHMIProperty(super.value);
 
@@ -303,7 +305,7 @@ class RHMIProperty extends ValueNotifier<Object?> {
         // only have seen LayoutBag conditions, where "0" is widescreen and "1" otherwise
         final assignment = assignments.childElements.first;
 
-        final assignmentValue = element.attributes.firstWhere((p0) => p0.name.local == 'value',
+        final assignmentValue = assignment.attributes.firstWhere((p0) => p0.name.local == 'value',
             orElse: (() => XmlAttribute(XmlName.fromString(""), ""))).value;
         properties[id] = RHMIProperty(assignmentValue);
       }
