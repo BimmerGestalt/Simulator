@@ -290,7 +290,7 @@ class RHMIStateWidget extends StatelessWidget {
             switch (e.type) {
               "button" => RHMIButtonWidget(app: app, component: e, callbacks: callbacks),
               "label" => RHMITextWidget(app: app, component: e),
-              "list" => RHMIListWidget(app: app, listComponent: e, callbacks: callbacks),
+              "list" => RHMIListWidget(app: app, component: e, callbacks: callbacks),
               _ => const SizedBox(),
             })
           ],
@@ -300,23 +300,45 @@ class RHMIStateWidget extends StatelessWidget {
   }
 }
 
-class RHMIButtonWidget extends StatelessWidget {
+/// Widget that hides itself based on component properties
+abstract class RHMIComponentWidget extends StatelessWidget {
+  const RHMIComponentWidget({
+    super.key,
+    required this.component,
+  });
+
+  final RHMIComponent component;
+
+  Widget appliedVisibility(WidgetBuilder builder) {
+    return ListenableBuilder(
+      listenable: component.properties[RHMIProperty.visible],
+      builder: (context, child) {
+        if (component.properties[RHMIProperty.visible].value == false) {
+          return const SizedBox();
+        } else {
+          return builder(context);
+        }
+      }
+    );
+  }
+}
+
+class RHMIButtonWidget extends RHMIComponentWidget {
   const RHMIButtonWidget({
     super.key,
     required this.app,
-    required this.component,
+    component,
     required this.callbacks,
-  });
+  }) : super(component: component);
 
   final RHMIApp app;
-  final RHMIComponent component;
   final RHMICallbacks callbacks;
 
   @override
   Widget build(BuildContext context) {
     final model = component.models["model"] ?? component.models["tooltipModel"];
     final imageModel = component.models["imageModel"];
-    return Row(
+    return appliedVisibility((context) => Row(
       children: [
         TextButton.icon(
             onPressed: () => callbacks.action(component),
@@ -324,29 +346,26 @@ class RHMIButtonWidget extends StatelessWidget {
             label: RHMITextModelWidget(app: app, model: model)
         )
       ],
-    );
+    ));
   }
 }
 
-class RHMITextWidget extends StatelessWidget {
+class RHMITextWidget extends RHMIComponentWidget {
   const RHMITextWidget({
     super.key,
     required this.app,
-    required this.component,
+    component,
     this.modelName = "model",
-  });
+  }) : super(component: component);
 
   final RHMIApp app;
-  final RHMIComponent component;
   final String modelName;
 
   @override
   Widget build(BuildContext context) {
     final model = component.models[modelName];
-    if (model != null) {
-      return RHMITextModelWidget(app: app, model: model);
-    }
-    return const Text("");
+    final widget = (model != null) ? RHMITextModelWidget(app: app, model: model) : const Text("");
+    return appliedVisibility((context) => widget);
   }
 }
 
@@ -461,18 +480,17 @@ class RHMITextIdWidget extends StatelessWidget {
   }
 }
 
-class RHMIListWidget extends StatelessWidget {
+class RHMIListWidget extends RHMIComponentWidget {
   const RHMIListWidget({
     super.key,
     required this.app,
-    required this.listComponent,
+    component,
     required this.callbacks,
     this.modelName = "model",
-  });
+  }) : super(component: component);
 
   final RHMIApp app;
   final RHMICallbacks callbacks;
-  final RHMIComponent listComponent;
   final String modelName;
 
   Widget renderCell(Object value, {required bool darkMode}) {
@@ -489,18 +507,18 @@ class RHMIListWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final model = listComponent.models[modelName];
+    final model = component.models[modelName];
     if (model == null) {
       return const Text("");
     }
-    return MultiValueListenableBuilder(
+    return appliedVisibility((context) => MultiValueListenableBuilder(
       valueListenables:
-        [model, listComponent.properties[RHMIProperty.list_columnwidth]],
+        [model, component.properties[RHMIProperty.list_columnwidth]],
       builder: (context, _, child) {
         final darkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
         final value = model.value;
         if (value is List) {
-          final columnSizes = listComponent.properties[RHMIProperty.list_columnwidth].value.toString()
+          final columnSizes = component.properties[RHMIProperty.list_columnwidth].value.toString()
               .split(",").map((e) => int.tryParse(e)?.let((self) => FixedColumnWidth(self.toDouble())) ?? const FlexColumnWidth())
               .toList().asMap();
           return Table(
@@ -516,7 +534,7 @@ class RHMIListWidget extends StatelessWidget {
                         maxHeight: 96,
                       ),
                       child: TableRowInkWell(
-                        onTap: () => callbacks.listAction(listComponent, index),
+                        onTap: () => callbacks.listAction(component, index),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                           child: renderCell(
@@ -535,7 +553,7 @@ class RHMIListWidget extends StatelessWidget {
           return const Text("");
         }
       }
-    );
+    ));
   }
 }
 
