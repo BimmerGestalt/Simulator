@@ -17,6 +17,8 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 import 'rhmi.dart';
 
+const SCALE_FACTOR = 0.7;
+
 class RHMICallbacks {
   RHMICallbacks(this.navigator, this.client, this.app);
 
@@ -207,14 +209,14 @@ class TransparentIcon extends StatelessWidget {
       }
       return Image.memory(
         image_manips.encodePng(image) as Uint8List,
-        width: width.toDouble(),
-        height: height.toDouble(),
+        width: width.toDouble() * SCALE_FACTOR,
+        height: height.toDouble() * SCALE_FACTOR,
       );
     } else {
       return Image.memory(
         iconData,
-        width: width.toDouble(),
-        height: height.toDouble(),
+        width: width.toDouble() * SCALE_FACTOR,
+        height: height.toDouble() * SCALE_FACTOR,
       );
     }
   }
@@ -225,8 +227,8 @@ class TransparentIcon extends StatelessWidget {
         future: filter(iconData),
         builder: (_, AsyncSnapshot<Image> parsedImage) {
           return parsedImage.data != null ? parsedImage.data! : SizedBox(
-            height: height.toDouble(),
-            width: width.toDouble(),
+            height: height.toDouble() * SCALE_FACTOR,
+            width: width.toDouble() * SCALE_FACTOR,
           );
         }
     );
@@ -298,8 +300,8 @@ class RHMIStateWidget extends StatelessWidget {
                 valueListenables: [e.properties[RHMIProperty.position_x], e.properties[RHMIProperty.position_y]],
                 builder: (context, _, child) {
                   return Positioned(
-                      left: (double.tryParse(e.properties[RHMIProperty.position_x].value.toString()) ?? 0)*.6,
-                      top: (double.tryParse(e.properties[RHMIProperty.position_y].value.toString()) ?? 0)*.6,
+                      left: (double.tryParse(e.properties[RHMIProperty.position_x].value.toString()) ?? 0) * SCALE_FACTOR,
+                      top: (double.tryParse(e.properties[RHMIProperty.position_y].value.toString()) ?? 0) * SCALE_FACTOR,
                       child: RHMIComponentWidget.fromComponent(app, e, callbacks)
                   );
                 }
@@ -323,6 +325,7 @@ abstract class RHMIComponentWidget extends StatelessWidget {
   static Widget fromComponent(RHMIApp app, RHMIComponent component, RHMICallbacks callbacks) {
     return switch (component.type) {
       "button" => RHMIButtonWidget(app: app, component: component, callbacks: callbacks),
+      "image" => RHMIImageWidget(app: app, component: component),
       "label" => RHMITextWidget(app: app, component: component),
       "list" => RHMIListWidget(app: app, component: component, callbacks: callbacks),
       _ => const SizedBox(),
@@ -362,7 +365,7 @@ class RHMIButtonWidget extends RHMIComponentWidget {
       children: [
         TextButton.icon(
             onPressed: () => callbacks.action(component),
-            icon: RHMIImageModelWidget(app: app, model: imageModel),
+            icon: RHMIImageModelWidget(app: app, model: imageModel, width: 48, height: 48),
             label: RHMITextModelWidget(app: app, model: model)
         )
       ],
@@ -389,15 +392,46 @@ class RHMITextWidget extends RHMIComponentWidget {
   }
 }
 
+class RHMIImageWidget extends RHMIComponentWidget {
+  const RHMIImageWidget({
+    super.key,
+    required this.app,
+    component,
+    this.modelName = "model",
+  }) : super(component: component);
+
+  final RHMIApp app;
+  final String modelName;
+
+  @override
+  Widget build(BuildContext context) {
+    final model = component.models[modelName];
+    return appliedVisibility((context) => MultiValueListenableBuilder(
+        valueListenables: [component.properties[RHMIProperty.width], component.properties[RHMIProperty.height]],
+        builder: (context, _, child) {
+          final width = int.tryParse(component.properties[RHMIProperty.width].value.toString()) ?? 48;
+          final height = int.tryParse(component.properties[RHMIProperty.height].value.toString()) ?? 48;
+          return (model != null) ?
+            RHMIImageModelWidget(app: app, model: model, width: width, height: height) :
+            SizedBox(width: width.toDouble(), height: height.toDouble());
+        }
+    ));
+  }
+}
+
 class RHMIImageModelWidget extends StatelessWidget {
   const RHMIImageModelWidget({
     super.key,
     required this.app,
     required this.model,
+    required this.width,
+    required this.height,
   });
 
   final RHMIApp app;
   final RHMIModel? model;
+  final int width;
+  final int height;
 
   @override
   Widget build(BuildContext context) {
@@ -412,18 +446,18 @@ class RHMIImageModelWidget extends StatelessWidget {
           if (model.type == "imageIdModel") {
             final imageId = model.attributes["imageId"];
             if (imageId is int) {
-              return RHMIImageIdWidget(app: app, imageId: imageId);
+              return RHMIImageIdWidget(app: app, imageId: imageId, width: width, height: height);
             }
           } else {
             final value = model.value;
             if (value is Uint8List) {
               return TransparentIcon(
-                  iconData: value, darkMode: darkMode, width: 48, height: 48
+                  iconData: value, darkMode: darkMode, width: width, height: height
               );
             }
           }
           // else
-          return const SizedBox(width: 48, height: 48);
+          return SizedBox(width: width * SCALE_FACTOR, height: height * SCALE_FACTOR);
         }
     );
   }
@@ -434,9 +468,13 @@ class RHMIImageIdWidget extends StatelessWidget {
     super.key,
     required this.app,
     required this.imageId,
+    required this.width,
+    required this.height,
   });
   final RHMIApp app;
   final int imageId;
+  final int width;
+  final int height;
 
   @override
   Widget build(BuildContext context) {
@@ -444,10 +482,10 @@ class RHMIImageIdWidget extends StatelessWidget {
     final iconData = app.images[imageId];
     if (iconData is Uint8List) {
       return TransparentIcon(
-          iconData: iconData, darkMode: darkMode, width: 48, height: 48
+          iconData: iconData, darkMode: darkMode, width: width, height: height
       );
     } else {
-      return const SizedBox(width: 48, height: 48);
+      return SizedBox(width: width * SCALE_FACTOR, height: height * SCALE_FACTOR);
     }
   }
 }
@@ -517,7 +555,7 @@ class RHMIListWidget extends RHMIComponentWidget {
     if (value is RHMITextId) {
       return RHMITextIdWidget(app: app, textId: value.id);
     } else if (value is RHMIImageId) {
-      return RHMIImageIdWidget(app: app, imageId: value.id);
+      return RHMIImageIdWidget(app: app, imageId: value.id, width: 48, height: 48);
     } else if (value is Uint8List) {
       return TransparentIcon(iconData: value, darkMode: darkMode, width: 96, height: 96);
     } else {

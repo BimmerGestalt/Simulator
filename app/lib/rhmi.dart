@@ -284,6 +284,8 @@ class RHMIProperty extends ValueNotifier<Object?> {
   static const selectable = 2;
   static const visible = 3;
   static const list_columnwidth = 6;
+  static const width = 9;
+  static const height = 10;
   static const position_x = 20;
   static const position_y = 21;
 
