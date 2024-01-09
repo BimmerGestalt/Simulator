@@ -21,6 +21,7 @@ dependencies:
   default_map: ^0.1.0+1
   image: ^3.0.6
   multi_value_listenable_builder: ^0.0.2
+  provider: ^6.1.1
 
   headunit:
     # When depending on this package from a real application you should use:

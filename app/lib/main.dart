@@ -1,13 +1,12 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
-import 'dart:async';
 
 import "package:collection/collection.dart";
 import 'package:flutter/services.dart';
+
 import 'package:headunit/pigeon.dart';
-import 'package:headunit_example/rhmi.dart';
 import 'package:headunit_example/rhmi_widgets.dart';
+import 'package:headunit_example/state.dart';
+import 'package:provider/provider.dart';
 
 
 final GlobalKey<NavigatorState> navKey = GlobalKey();
@@ -24,47 +23,17 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> implements HeadunitApi {
-  String _platformVersion = 'Unknown';
-  final _serverPlugin = ServerApi();
-
-  final amApps = <String, AMAppInfo>{};
-  final rhmiApps = <String, RHMIApp>{};
-  final entryButtonsByCategory = <String, List<StatelessWidget>>{};
+  final ServerApi _serverPlugin = ServerApi();
+  AppList? _appList;
 
   @override
   void initState() {
     super.initState();
-    initPlatformState();
     HeadunitApi.setup(this, binaryMessenger: ServicesBinding.instance.defaultBinaryMessenger);
-    _serverPlugin.startServer();
-  }
-
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    // We also handle the message potentially returning null.
-    try {
-      platformVersion =
-          await _serverPlugin.getPlatformVersion() ?? 'Unknown platform version';
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
-    }
-
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
-    if (!mounted) return;
-
-    setState(() {
-      _platformVersion = platformVersion;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = entryButtonsByCategory.keys.sortedBy((element) => element);
-
     return MaterialApp(
       navigatorKey: navKey,
       darkTheme: ThemeData(
@@ -76,75 +45,42 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
         ),
         body: DefaultTextStyle(
           style: const TextStyle(fontSize: 20),
-          child: ListView(
-            children: [
-              Center(
-                child: Text('Running on: $_platformVersion\n'),
-              ),
-              ...categories.map((e) => RHMISectionWidget(name: e, buttons: entryButtonsByCategory[e]!))
-            ],
+          child: ChangeNotifierProvider(
+            create: (context) {
+              _appList = AppList();
+              _serverPlugin.startServer();
+              return _appList;
+            },
+            child: MainScreen(serverApi: _serverPlugin),
           )
         )
       ),
     );
   }
 
-  void updateEntryButtons() {
-    final Map<String, List<StatelessWidget>> entryButtonsByCategory = {};
-    for (final amApp in amApps.values) {
-      if (!entryButtonsByCategory.containsKey(amApp.category)) {
-        entryButtonsByCategory[amApp.category] = [];
-      }
-      entryButtonsByCategory[amApp.category]?.add(RHMIEntryButtonWidget.wrapAMAppInfo(_serverPlugin, amApp));
-    }
-    for (final app in rhmiApps.values) {
-      for (final entry in app.description.entryButtons.entries) {
-        if (!entryButtonsByCategory.containsKey(entry.key)) {
-          entryButtonsByCategory[entry.key] = [];
-        }
-        entryButtonsByCategory[entry.key]?.add(RHMIEntryButtonWidget.wrapRhmiEntryButton(app, entry.value, RHMICallbacks(navKey.currentState!, _serverPlugin, app), entry.key));
-      }
-    }
-    this.entryButtonsByCategory.clear();
-    this.entryButtonsByCategory.addAll(entryButtonsByCategory);
-  }
-
   @override
   void amRegisterApp(AMAppInfo appInfo) {
-    setState(() {
-      amApps[appInfo.appId] = appInfo;
-      updateEntryButtons();
-    });
+    _appList?.amRegisterApp(appInfo);
   }
 
   @override
   void amUnregisterApp(String appId) {
-    setState(() {
-      amApps.remove(appId);
-      updateEntryButtons();
-    });
+    _appList?.amUnregisterApp(appId);
   }
 
   @override
   void rhmiRegisterApp(RHMIAppInfo appInfo) {
-    log("New RHMI app ${appInfo.appId}");
-    final description = appInfo.resources['DESCRIPTION'];
-    if (description != null) {
-      setState(() {
-        rhmiApps[appInfo.appId] = RHMIApp.loadResources(appInfo.appId, appInfo.resources);
-        updateEntryButtons();
-      });
-    }
+    _appList?.rhmiRegisterApp(appInfo);
   }
 
   @override
   void rhmiSetData(String appId, int modelId, Object? value) {
-    rhmiApps[appId]?.description.setData(modelId, value);
+    _appList?.rhmiApps[appId]?.description.setData(modelId, value);
   }
 
   @override
   void rhmiSetProperty(String appId, int componentId, int propertyId, Object? value) {
-    final component = rhmiApps[appId]?.description.components[componentId];
+    final component = _appList?.rhmiApps[appId]?.description.components[componentId];
     if (component == null) return;
     component.properties[propertyId].value = value;
   }
@@ -152,11 +88,11 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
   @override
   void rhmiTriggerEvent(String appId, int eventId, Map<int?, Object?> args) {
     // TODO: implement rhmiTriggerEvent
-    final app = rhmiApps[appId];
+    final app = _appList?.rhmiApps[appId];
     final event = app?.description.events[eventId];
     if (app != null && event?.type == "focusEvent") {
       final target = args[0];
-      final targetState = rhmiApps[appId]?.description.states[target];
+      final targetState = _appList?.rhmiApps[appId]?.description.states[target];
       if (targetState != null) {
         RHMICallbacks(navKey.currentState!, _serverPlugin, app).openState(targetState.id);
       }
@@ -166,9 +102,45 @@ class _MyAppState extends State<MyApp> implements HeadunitApi {
 
   @override
   void rhmiUnregisterApp(String appId) {
-    log("Removed RHMI app $appId");
-    setState(() {
-      rhmiApps.remove(appId);
-    });
+    _appList?.rhmiUnregisterApp(appId);
+  }
+}
+
+class MainScreen extends StatelessWidget {
+  const MainScreen({super.key, required this.serverApi});
+  final ServerApi serverApi;
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AppList>(
+        builder: (context, appList, child) {
+          final entryButtonsByCategory = updateEntryButtons(appList);
+          final categories = entryButtonsByCategory.keys.sortedBy((element) => element);
+          return ListView(
+            children: [
+              ...categories.map((e) => RHMISectionWidget(name: e, buttons: entryButtonsByCategory[e]!))
+            ],
+          );
+        }
+    );
+  }
+
+  Map<String, List<StatelessWidget>> updateEntryButtons(AppList appList) {
+    final Map<String, List<StatelessWidget>> entryButtonsByCategory = {};
+    for (final amApp in appList.amApps.values) {
+      if (!entryButtonsByCategory.containsKey(amApp.category)) {
+        entryButtonsByCategory[amApp.category] = [];
+      }
+      entryButtonsByCategory[amApp.category]?.add(RHMIEntryButtonWidget.wrapAMAppInfo(serverApi, amApp));
+    }
+    for (final app in appList.rhmiApps.values) {
+      for (final entry in app.description.entryButtons.entries) {
+        if (!entryButtonsByCategory.containsKey(entry.key)) {
+          entryButtonsByCategory[entry.key] = [];
+        }
+        entryButtonsByCategory[entry.key]?.add(RHMIEntryButtonWidget.wrapRhmiEntryButton(app, entry.value, RHMICallbacks(navKey.currentState!, serverApi, app), entry.key));
+      }
+    }
+    return entryButtonsByCategory;
   }
 }

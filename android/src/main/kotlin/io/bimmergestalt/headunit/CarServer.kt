@@ -5,17 +5,18 @@ import de.bmw.idrive.BMWRemotingServer
 import de.bmw.idrive.RemoteBMWRemotingClient
 import io.bimmergestalt.headunit.managers.AMManager
 import io.bimmergestalt.headunit.managers.RHMIManager
+import io.flutter.Log
 import org.apache.etch.bindings.java.support.ServerFactory
 import org.apache.etch.util.core.io.Transport
 import java.io.IOException
 
-class CarServer(val host: String = "127.0.0.1", val port: Int = 4006, val amManager: AMManager, val rhmiManager: RHMIManager) {
+class CarServer(val host: String = "0.0.0.0", val port: Int = 4006, val amManager: AMManager, val rhmiManager: RHMIManager) {
 	private val uri = "tcp://$host:$port?Packetizer.maxPktSize=8388608&TcpTransport.noDelay=true"
 	private var serverFactory: ServerFactory? = null
 
 	fun startServer() {
 		if (serverFactory != null) {
-			return
+			stopServer()
 		}
 		try {
 			val serverFactory = BMWRemotingHelper.newListener(uri, null, BMWRemotingListener(amManager, rhmiManager))
@@ -27,7 +28,8 @@ class CarServer(val host: String = "127.0.0.1", val port: Int = 4006, val amMana
 	}
 
 	fun stopServer() {
-		serverFactory?.transportControl(Transport.STOP, 4000)
+		serverFactory?.transportControl(Transport.STOP_AND_WAIT_DOWN, 4000)
+		serverFactory?.transportControl(Transport.RESET, 4000)
 		serverFactory = null
 	}
 
