@@ -80,6 +80,57 @@ class RHMIAppInfo {
   }
 }
 
+class RHMITableUpdate {
+  RHMITableUpdate({
+    required this.totalRows,
+    required this.totalColumns,
+    required this.startRow,
+    required this.startColumn,
+    required this.numRows,
+    required this.numColumns,
+    required this.data,
+  });
+
+  int totalRows;
+
+  int totalColumns;
+
+  int startRow;
+
+  int startColumn;
+
+  int numRows;
+
+  int numColumns;
+
+  List<List?> data;
+
+  Object encode() {
+    return <Object?>[
+      totalRows,
+      totalColumns,
+      startRow,
+      startColumn,
+      numRows,
+      numColumns,
+      data,
+    ];
+  }
+
+  static RHMITableUpdate decode(Object result) {
+    result as List<Object?>;
+    return RHMITableUpdate(
+      totalRows: result[0]! as int,
+      totalColumns: result[1]! as int,
+      startRow: result[2]! as int,
+      startColumn: result[3]! as int,
+      numRows: result[4]! as int,
+      numColumns: result[5]! as int,
+      data: (result[6] as List<Object?>?)!.cast<List?>(),
+    );
+  }
+}
+
 class RHMIImageId {
   RHMIImageId({
     required this.id,
@@ -135,8 +186,11 @@ class _ServerApiCodec extends StandardMessageCodec {
     } else if (value is RHMIImageId) {
       buffer.putUint8(130);
       writeValue(buffer, value.encode());
-    } else if (value is RHMITextId) {
+    } else if (value is RHMITableUpdate) {
       buffer.putUint8(131);
+      writeValue(buffer, value.encode());
+    } else if (value is RHMITextId) {
+      buffer.putUint8(132);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -153,6 +207,8 @@ class _ServerApiCodec extends StandardMessageCodec {
       case 130: 
         return RHMIImageId.decode(readValue(buffer)!);
       case 131: 
+        return RHMITableUpdate.decode(readValue(buffer)!);
+      case 132: 
         return RHMITextId.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -304,8 +360,11 @@ class _HeadunitApiCodec extends StandardMessageCodec {
     } else if (value is RHMIImageId) {
       buffer.putUint8(130);
       writeValue(buffer, value.encode());
-    } else if (value is RHMITextId) {
+    } else if (value is RHMITableUpdate) {
       buffer.putUint8(131);
+      writeValue(buffer, value.encode());
+    } else if (value is RHMITextId) {
+      buffer.putUint8(132);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -322,6 +381,8 @@ class _HeadunitApiCodec extends StandardMessageCodec {
       case 130: 
         return RHMIImageId.decode(readValue(buffer)!);
       case 131: 
+        return RHMITableUpdate.decode(readValue(buffer)!);
+      case 132: 
         return RHMITextId.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -346,7 +407,7 @@ abstract class HeadunitApi {
 
   void rhmiTriggerEvent(String appId, int eventId, Map<int?, Object?> args);
 
-  void _dummy(RHMITextId a, RHMIImageId b);
+  void _dummy(RHMITextId a, RHMIImageId b, RHMITableUpdate c);
 
   static void setup(HeadunitApi? api, {BinaryMessenger? binaryMessenger}) {
     {
@@ -516,7 +577,10 @@ abstract class HeadunitApi {
           final RHMIImageId? arg_b = (args[1] as RHMIImageId?);
           assert(arg_b != null,
               'Argument for dev.flutter.pigeon.headunit.HeadunitApi._dummy was null, expected non-null RHMIImageId.');
-          api._dummy(arg_a!, arg_b!);
+          final RHMITableUpdate? arg_c = (args[2] as RHMITableUpdate?);
+          assert(arg_c != null,
+              'Argument for dev.flutter.pigeon.headunit.HeadunitApi._dummy was null, expected non-null RHMITableUpdate.');
+          api._dummy(arg_a!, arg_b!, arg_c!);
           return;
         });
       }

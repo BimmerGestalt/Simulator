@@ -10,14 +10,16 @@ import io.bimmergestalt.headunit.HeadunitCallbacks
 import io.bimmergestalt.headunit.RHMIAppInfo
 import io.bimmergestalt.headunit.RHMIImageId
 import io.bimmergestalt.headunit.RHMITextId
+import io.bimmergestalt.headunit.RHMITableUpdate
 import io.flutter.Log
+import java.util.concurrent.ConcurrentHashMap
 
 class RHMIManager(val callbacks: HeadunitCallbacks) {
 	private val TAG = "RHMIManager"
-	private val knownApps = HashMap<String, RHMIAppInfo>()
-	private val actionHandlers = HashMap<Int, BMWRemotingClient>()
-	private val eventHandlers = HashMap<Int, BMWRemotingClient>()
-	private val actionCallbacks = HashMap<Int, HashMap<Int, (Result<Boolean>) -> Unit>>()
+	private val knownApps = ConcurrentHashMap<String, RHMIAppInfo>()
+	private val actionHandlers = ConcurrentHashMap<Int, BMWRemotingClient>()
+	private val eventHandlers = ConcurrentHashMap<Int, BMWRemotingClient>()
+	private val actionCallbacks = ConcurrentHashMap<Int, ConcurrentHashMap<Int, (Result<Boolean>) -> Unit>>()
 
 	fun registerApp(handle: Int, appId: String, resources: Map<RHMIResourceType, ByteArray>) {
 		val existing = knownApps[appId]
@@ -67,11 +69,16 @@ class RHMIManager(val callbacks: HeadunitCallbacks) {
 		return when (value) {
 			is RHMIDataTable -> {
 				// TODO handle partial table updates :fear:
-				value.data.map { row ->
+				val data = value.data.map { row ->
 					row.map { cell ->
 						simplifyData(cell)
 					}
 				}
+				RHMITableUpdate(totalRows = value.totalRows.toLong(), totalColumns = value.totalColumns.toLong(),
+					startRow = value.fromRow.toLong(), startColumn = value.fromColumn.toLong(),
+					numRows = value.numRows.toLong(), numColumns = value.numColumns.toLong(),
+					data = data
+				)
 			}
 			is RHMIResourceData -> value.data    // assume the destination model is RA
 			is RHMIResourceIdentifier -> if (value.type == RHMIResourceType.IMAGEID) {
@@ -112,7 +119,7 @@ class RHMIManager(val callbacks: HeadunitCallbacks) {
 			actionHandlers[existing.handle.toInt()]?.rhmi_onActionEvent(existing.handle.toInt(), "", actionId, args)
 
 			if (!actionCallbacks.containsKey(existing.handle.toInt())) {
-				actionCallbacks[existing.handle.toInt()] = HashMap()
+				actionCallbacks[existing.handle.toInt()] = ConcurrentHashMap()
 			}
 			actionCallbacks[existing.handle.toInt()]?.put(actionId, callback)
 		}

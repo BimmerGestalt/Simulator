@@ -549,15 +549,18 @@ class RHMIListWidget extends RHMIComponentWidget {
   final RHMICallbacks callbacks;
   final String modelName;
 
-  Widget renderCell(Object value, {required bool darkMode}) {
+  Widget renderCell(Object? value, {required bool darkMode}) {
     if (value is RHMITextId) {
       return RHMITextIdWidget(app: app, textId: value.id);
     } else if (value is RHMIImageId) {
       return RHMIImageIdWidget(app: app, imageId: value.id, width: 48, height: 48);
     } else if (value is Uint8List) {
-      return TransparentIcon(iconData: value, darkMode: darkMode, width: 96, height: 96);
-    } else {
+      return TransparentIcon(
+          iconData: value, darkMode: darkMode, width: 96, height: 96);
+    } else if (value != null) {
       return Text(value.toString());
+    } else {
+      return const Text("");
     }
   }
 
@@ -574,6 +577,15 @@ class RHMIListWidget extends RHMIComponentWidget {
         final darkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
         final value = model.value;
         if (value is List) {
+          if (component.properties[RHMIProperty.valid].value == false) {
+            for (final (_, row) in value.indexed) {
+              if (row is List && row[0] == null) {
+                log("Component ${component.id} requesting data for ${value.length} rows");
+                callbacks.client.rhmiEvent(app.appId, component.id, 2, {5: 0, 6: value.length});  // load partial data
+                break;
+              }
+            }
+          }
           final columnSizes = component.properties[RHMIProperty.list_columnwidth].value.toString()
               .split(",").map((e) => int.tryParse(e)?.let((self) => FixedColumnWidth(self.toDouble())) ?? const FlexColumnWidth())
               .toList().asMap();

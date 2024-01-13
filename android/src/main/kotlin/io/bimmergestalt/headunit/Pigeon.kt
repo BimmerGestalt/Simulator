@@ -100,6 +100,43 @@ data class RHMIAppInfo (
 }
 
 /** Generated class from Pigeon that represents data sent in messages. */
+data class RHMITableUpdate (
+  val totalRows: Long,
+  val totalColumns: Long,
+  val startRow: Long,
+  val startColumn: Long,
+  val numRows: Long,
+  val numColumns: Long,
+  val data: List<List<Any?>?>
+
+) {
+  companion object {
+    @Suppress("UNCHECKED_CAST")
+    fun fromList(list: List<Any?>): RHMITableUpdate {
+      val totalRows = list[0].let { if (it is Int) it.toLong() else it as Long }
+      val totalColumns = list[1].let { if (it is Int) it.toLong() else it as Long }
+      val startRow = list[2].let { if (it is Int) it.toLong() else it as Long }
+      val startColumn = list[3].let { if (it is Int) it.toLong() else it as Long }
+      val numRows = list[4].let { if (it is Int) it.toLong() else it as Long }
+      val numColumns = list[5].let { if (it is Int) it.toLong() else it as Long }
+      val data = list[6] as List<List<Any?>?>
+      return RHMITableUpdate(totalRows, totalColumns, startRow, startColumn, numRows, numColumns, data)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf<Any?>(
+      totalRows,
+      totalColumns,
+      startRow,
+      startColumn,
+      numRows,
+      numColumns,
+      data,
+    )
+  }
+}
+
+/** Generated class from Pigeon that represents data sent in messages. */
 data class RHMIImageId (
   val id: Long
 
@@ -158,6 +195,11 @@ private object ServerApiCodec : StandardMessageCodec() {
       }
       131.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
+          RHMITableUpdate.fromList(it)
+        }
+      }
+      132.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
           RHMITextId.fromList(it)
         }
       }
@@ -178,8 +220,12 @@ private object ServerApiCodec : StandardMessageCodec() {
         stream.write(130)
         writeValue(stream, value.toList())
       }
-      is RHMITextId -> {
+      is RHMITableUpdate -> {
         stream.write(131)
+        writeValue(stream, value.toList())
+      }
+      is RHMITextId -> {
+        stream.write(132)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -323,6 +369,11 @@ private object HeadunitApiCodec : StandardMessageCodec() {
       }
       131.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
+          RHMITableUpdate.fromList(it)
+        }
+      }
+      132.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
           RHMITextId.fromList(it)
         }
       }
@@ -343,8 +394,12 @@ private object HeadunitApiCodec : StandardMessageCodec() {
         stream.write(130)
         writeValue(stream, value.toList())
       }
-      is RHMITextId -> {
+      is RHMITableUpdate -> {
         stream.write(131)
+        writeValue(stream, value.toList())
+      }
+      is RHMITextId -> {
+        stream.write(132)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -403,9 +458,9 @@ class HeadunitApi(private val binaryMessenger: BinaryMessenger) {
       callback()
     }
   }
-  fun _dummy(aArg: RHMITextId, bArg: RHMIImageId, callback: () -> Unit) {
+  fun _dummy(aArg: RHMITextId, bArg: RHMIImageId, cArg: RHMITableUpdate, callback: () -> Unit) {
     val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.headunit.HeadunitApi._dummy", codec)
-    channel.send(listOf(aArg, bArg)) {
+    channel.send(listOf(aArg, bArg, cArg)) {
       callback()
     }
   }

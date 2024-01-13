@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:default_map/default_map.dart';
 import 'package:flutter/material.dart';
+import 'package:headunit/pigeon.dart';
 import 'package:xml/xml.dart';
 
 class RHMIApp {
@@ -144,7 +145,39 @@ class RHMIAppDescription {
       log("Unknown model $model from ${models.keys}");
     }
     log("Setting data $model to $value");
-    models[model]?.value = value;
+    if (value is RHMITableUpdate) {
+      // check existing model value and clear it if the table shape is different
+      var destTable = models[model]?.value;
+      if (destTable is List<List>) {
+        if (destTable.isEmpty || destTable.length != value.totalRows || destTable[0].length != value.totalColumns) {
+          destTable = null;
+        }
+      } else {
+        destTable = null;
+      }
+
+      // create a table
+      destTable ??= List.generate(value.totalRows, (index) => List<Object?>.filled(value.totalColumns, null, growable: true));
+
+      // fill the table
+      if (destTable is List<List<Object?>>) {
+        for (final (rowIndex, row) in value.data.indexed) {
+          if (row is List) {
+            for (final (colIndex, col) in row.indexed) {
+              if (value.startColumn + colIndex >= destTable[value.startRow + rowIndex].length) {
+                destTable[value.startRow + rowIndex].add(col);
+              } else {
+                destTable[value.startRow + rowIndex][value.startColumn + colIndex] = col;
+              }
+            }
+          }
+        }
+      }
+      models[model]?.value = null;
+      models[model]?.value = destTable;
+    } else {
+      models[model]?.value = value;
+    }
   }
 }
 
@@ -283,6 +316,7 @@ class RHMIProperty extends ValueNotifier<Object?> {
   static const enabled = 1;
   static const selectable = 2;
   static const visible = 3;
+  static const valid = 4;
   static const list_columnwidth = 6;
   static const width = 9;
   static const height = 10;

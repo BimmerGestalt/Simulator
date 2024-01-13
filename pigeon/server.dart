@@ -27,6 +27,17 @@ class RHMIAppInfo {
   RHMIAppInfo(this.handle, this.appId, this.resources);
 }
 
+class RHMITableUpdate {
+  final int totalRows;
+  final int totalColumns;
+  final int startRow;
+  final int startColumn;
+  final int numRows;
+  final int numColumns;
+  final List<List?> data;
+
+  RHMITableUpdate(this.totalRows, this.totalColumns, this.startRow, this.startColumn, this.numRows, this.numColumns, this.data);
+}
 class RHMIImageId {
   final int id;
 
@@ -57,5 +68,5 @@ abstract class HeadunitApi {
   void rhmiSetProperty(String appId, int componentId, int propertyId, Object? value);
   void rhmiTriggerEvent(String appId, int eventId, Map<int, Object?> args);
 
-  void _dummy(RHMITextId a, RHMIImageId b);
+  void _dummy(RHMITextId a, RHMIImageId b, RHMITableUpdate c);
 }

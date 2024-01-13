@@ -5,11 +5,12 @@ import de.bmw.idrive.BMWRemotingClient
 import io.bimmergestalt.headunit.AMAppInfo
 import io.bimmergestalt.headunit.HeadunitCallbacks
 import io.flutter.Log
+import java.util.concurrent.ConcurrentHashMap
 
 class AMManager(val callbacks: HeadunitCallbacks) {
 	private val TAG = "AMManager"
-	private val knownApps = HashMap<String, AMAppInfo>()
-	private val eventHandlers = HashMap<Int, BMWRemotingClient>()
+	private val knownApps = ConcurrentHashMap<String, AMAppInfo>()
+	private val eventHandlers = ConcurrentHashMap<Int, BMWRemotingClient>()
 
 	fun registerApp(handle: Int, appId: String, name: String, icon: ByteArray, category: String) {
 		val existing = knownApps[appId]
